@@ -154,6 +154,10 @@ export async function signUp(email, password) {
   const c = await client();
   const { data, error } = await c.auth.signUp({ email, password, options: { emailRedirectTo: redirect() } });
   if (error) throw error;
+  // Correo ya registrado: Supabase responde "ok" sin enviar nada y sin identidades.
+  if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    throw new Error('User already registered');
+  }
   return !data.session;
 }
 
@@ -182,7 +186,7 @@ export function authError(e) {
   const m = (e && (e.message || e.error_description)) || '';
   if (/invalid login credentials/i.test(m)) return 'Correo o contraseña incorrectos.';
   if (/email not confirmed/i.test(m)) return 'Primero confirma tu correo: revisa tu bandeja (y spam).';
-  if (/already registered|already exists/i.test(m)) return 'Ese correo ya tiene cuenta. Entra o recupera tu contraseña.';
+  if (/already registered|already exists/i.test(m)) return 'Ese correo ya tiene cuenta. Entra con un enlace al correo o usa "¿Olvidaste tu contraseña?".';
   if (/rate limit|seconds|too many/i.test(m)) return 'Demasiados intentos. Espera un minuto y vuelve a intentar.';
   if (/password.*(at least|short|weak)|weak/i.test(m)) return 'La contraseña es muy débil: usa al menos 8 caracteres.';
   if (/same password|different from the old/i.test(m)) return 'La nueva contraseña debe ser distinta a la anterior.';
