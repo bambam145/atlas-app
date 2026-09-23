@@ -2,7 +2,7 @@
 import { state } from './store.js';
 import { icon } from './icons.js';
 import { esc, keyOf, today, addDays, fmtDay, DAY_LETTER, DAY_SHORT, WEEK_ORDER, ALL_DAYS } from './util.js';
-import { findHabit, daysLabel, HABIT_SUGGESTIONS, EMOJIS } from './habits.js';
+import { findHabit, daysLabel, HABIT_SUGGESTIONS, EMOJIS, MOMENTS, momentOfTime } from './habits.js';
 import { findTask, STATUS, CATEGORY_ICON } from './tasks.js';
 import { findGoal, GOAL_SUGGESTIONS, currentOf } from './goals.js';
 import { fmtAmount } from './views/metas.js';
@@ -59,7 +59,12 @@ function habitSheet() {
     </div>${emojiPicker(d.emoji)}`)}
     ${field('¿Qué días?', `<div class="days">${WEEK_ORDER.map((i) => `<button class="day${d.days.includes(i) ? ' is-on' : ''}" data-action="habit-day" data-d="${i}" aria-pressed="${d.days.includes(i)}" aria-label="${DAY_SHORT[i]}">${DAY_LETTER[i]}</button>`).join('')}</div>
       <p class="hint">${d.days.length ? daysLabel(d.days) : 'Elige al menos un día'}</p>`)}
-    ${field('Hora', `<input class="input" type="time" data-bind="time" value="${esc(d.time)}">`, 'opcional')}
+    ${field('¿En qué momento?', `<div class="moment-opts">${MOMENTS.map(([id, e, t, h]) => `
+      <button class="ob-opt${momentOfTime(d.time) === id ? ' is-on' : ''}" data-action="habit-moment" data-v="${id}" aria-pressed="${momentOfTime(d.time) === id}">
+        <span>${e}</span><small>${t}</small>${h ? `<small class="opt-h">${h}</small>` : ''}
+      </button>`).join('')}</div>
+      <p class="hint">O elige una hora exacta:</p>
+      <input class="input" type="time" data-bind="time" value="${esc(d.time)}">`)}
     <div class="sheet-actions">
       <button class="pill" data-action="save-habit">${sheet.mode === 'edit' ? 'Guardar cambios' : 'Crear hábito'}</button>
       ${sheet.mode === 'edit' ? `<button class="link-danger" data-action="delete-habit">${icon('trash')} Eliminar hábito</button>` : ''}

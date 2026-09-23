@@ -4,17 +4,31 @@ import { keyOf, fromKey, today, addDays, mondayOf, DAY_SHORT, WEEK_ORDER } from 
 
 export const SKIPS_PER_WEEK = 1;
 
+// Momentos del día: atajos de hora para hábitos que dependen del horario (comidas, rutinas…).
+export const MOMENTS = [
+  ['manana', '🌅', 'Mañana', '07:00'],
+  ['mediodia', '☀️', 'Mediodía', '12:30'],
+  ['tarde', '🌇', 'Tarde', '17:00'],
+  ['noche', '🌙', 'Noche', '20:30'],
+  ['libre', '🕊️', 'Libre', ''],
+];
+export const momentTime = (id) => (MOMENTS.find((m) => m[0] === id) || [])[3] || '';
+export const momentOfTime = (time) => (MOMENTS.find((m) => m[3] === time) || [])[0] || (time ? '' : 'libre');
+
+// [emoji, nombre, momento sugerido]
 export const HABIT_SUGGESTIONS = [
-  ['💧', 'Tomar 2 L de agua'],
-  ['📚', 'Leer 10 páginas'],
-  ['🧘', 'Meditar 5 min'],
-  ['🏃', 'Caminar 20 min'],
-  ['🏋️', 'Entrenar'],
-  ['😴', 'Dormir 8 horas'],
-  ['🥗', 'Comer sano'],
-  ['📵', '1 hora sin redes'],
-  ['✍️', 'Escribir mi diario'],
-  ['🙏', 'Agradecer 3 cosas'],
+  ['💧', 'Tomar 2 L de agua', 'libre'],
+  ['📚', 'Leer 10 páginas', 'noche'],
+  ['🧘', 'Meditar 5 min', 'manana'],
+  ['🏃', 'Caminar 20 min', 'tarde'],
+  ['🏋️', 'Entrenar', 'tarde'],
+  ['🍳', 'Desayunar sano', 'manana'],
+  ['🥗', 'Almuerzo balanceado', 'mediodia'],
+  ['🍽️', 'Cenar ligero', 'noche'],
+  ['😴', 'Dormir 8 horas', 'noche'],
+  ['📵', '1 hora sin redes', 'noche'],
+  ['✍️', 'Escribir mi diario', 'noche'],
+  ['🙏', 'Agradecer 3 cosas', 'manana'],
 ];
 
 export const EMOJIS = [

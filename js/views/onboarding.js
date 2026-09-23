@@ -2,16 +2,13 @@
 import { state } from '../store.js';
 import { icon, logo } from '../icons.js';
 import { esc } from '../util.js';
-import { HABIT_SUGGESTIONS } from '../habits.js';
+import { HABIT_SUGGESTIONS, MOMENTS } from '../habits.js';
 
-export const MOMENTS = [
-  ['manana', '🌅', 'Mañana', '07:00'],
-  ['tarde', '☀️', 'Tarde', '13:00'],
-  ['noche', '🌙', 'Noche', '20:00'],
-  ['libre', '🕊️', 'Sin hora fija', ''],
-];
+export { MOMENTS };
 
-export const ob = { step: 0, name: '', picks: [], moment: 'manana', error: '' };
+// times: momento elegido para cada hábito (índice → id de momento)
+export const ob = { step: 0, name: '', picks: [], times: {}, error: '' };
+export const obMoment = (i) => ob.times[i] || HABIT_SUGGESTIONS[i][2] || 'libre';
 
 // Si ya tienes hábitos, solo falta el nombre.
 export const obSteps = () => (state.habits.length ? ['name'] : ['name', 'habits', 'moment']);
@@ -48,12 +45,21 @@ export function renderOnboarding() {
       </div>`;
   } else {
     body = `
-      <h1 class="ob-title">¿Cuándo prefieres <span>hacer tus hábitos?</span></h1>
-      <p class="auth-p">Los ordenamos en tu día a esa hora. Puedes ajustar cada uno después.</p>
-      <div class="ob-moments">${MOMENTS.map(([id, e, t, h]) => `
-        <button class="ob-moment${ob.moment === id ? ' is-on' : ''}" data-action="ob-moment" data-v="${id}" aria-pressed="${ob.moment === id}">
-          <span class="ob-emoji">${e}</span><b>${t}</b><small>${h ? h.replace(':00', ':00 h') : 'Cuando puedas'}</small>
-        </button>`).join('')}</div>
+      <h1 class="ob-title">¿En qué momento <span>haces cada uno?</span></h1>
+      <p class="auth-p">Ya los acomodamos según lo usual: cambia lo que quieras. Así tu día queda en orden (desayuno temprano, almuerzo al mediodía, cena en la noche…).</p>
+      <div class="ob-times">${ob.picks.map((i) => {
+        const [e, n] = HABIT_SUGGESTIONS[i];
+        const cur = obMoment(i);
+        return `
+        <div class="ob-time-row">
+          <span class="ob-emoji">${e}</span>
+          <span class="ob-time-name">${n}</span>
+          <div class="ob-time-opts" role="radiogroup" aria-label="Momento para ${n}">${MOMENTS.map(([id, me, t, h]) => `
+            <button class="ob-opt${cur === id ? ' is-on' : ''}" data-action="ob-moment" data-i="${i}" data-v="${id}" role="radio" aria-checked="${cur === id}" data-tip="${h ? `${t} · ${h}` : 'Sin hora fija'}">
+              <span>${me}</span><small>${t}</small>
+            </button>`).join('')}</div>
+        </div>`;
+      }).join('')}</div>
       <div class="ob-actions">
         <button class="text-btn" data-action="ob-back">${icon('left')} Atrás</button>
         <button class="pill" data-action="ob-finish">Armar mi sistema ${icon('sparkles')}</button>

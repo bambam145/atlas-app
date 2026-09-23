@@ -2,7 +2,7 @@
 import { state, save, setRenderer, replaceState, isValidBackup } from './store.js';
 import { icon, logo } from './icons.js';
 import { today, keyOf, fromKey, addDays, fromMinutes, uid, fmtDay, fmtTime, ALL_DAYS } from './util.js';
-import { findHabit, isScheduled, statusOf, setStatus, streakOf, skipsThisWeek, SKIPS_PER_WEEK, HABIT_SUGGESTIONS } from './habits.js';
+import { findHabit, isScheduled, statusOf, setStatus, streakOf, skipsThisWeek, SKIPS_PER_WEEK, HABIT_SUGGESTIONS, momentTime } from './habits.js';
 import { findTask, newTask, setTaskStatus, parseTask, QUADRANTS } from './tasks.js';
 import { findGoal, GOAL_SUGGESTIONS } from './goals.js';
 import { checkRewards } from './xp.js';
@@ -20,7 +20,7 @@ import { renderMapa, mountMapa, toggleKind, zoomMapa } from './views/mapa.js';
 import { cloud, cloudEnabled, initCloud, onCloudChange, sendCode, verifyCode, signOut, pull, statusLabel,
   signInPassword, signUp, resetPassword, updatePassword, resendConfirmation, authError } from './cloud.js';
 import { auth, resetAuth, renderAuth, renderSplash, mountAuthFx, passStrength, STRENGTH_LABEL } from './views/auth.js';
-import { ob, obSteps, renderOnboarding, MOMENTS } from './views/onboarding.js';
+import { ob, obSteps, obMoment, renderOnboarding } from './views/onboarding.js';
 
 const VIEWS = {
   hoy: renderHoy, tareas: renderTareas, planner: renderPlanner, habitos: renderHabitos,
@@ -287,7 +287,7 @@ const actions = {
     ob.picks = ob.picks.includes(i) ? ob.picks.filter((x) => x !== i) : [...ob.picks, i];
     ob.error = ''; render();
   },
-  'ob-moment': (el) => { ob.moment = el.dataset.v; render(); },
+  'ob-moment': (el) => { ob.times[+el.dataset.i] = el.dataset.v; render(); },
   'ob-finish': () => finishOnboarding(),
   'save-name': () => {
     const v = (document.getElementById('f-profile-name')?.value || '').trim();
@@ -347,13 +347,14 @@ const actions = {
     setStatus(h, t, 'skip'); toast('🌙 Descanso registrado. Tu racha está a salvo'); render();
   },
   'quick-habit': (el) => {
-    const [emoji, name] = HABIT_SUGGESTIONS[+el.dataset.i];
-    state.habits.push({ id: uid(), emoji, name, days: [...ALL_DAYS], time: '', createdAt: keyOf(today()) });
+    const [emoji, name, m] = HABIT_SUGGESTIONS[+el.dataset.i];
+    state.habits.push({ id: uid(), emoji, name, days: [...ALL_DAYS], time: momentTime(m), createdAt: keyOf(today()) });
     save(); toast(`${emoji} ${name} agregado`); render();
   },
   'new-habit': () => openHabit(),
   'edit-habit': (el) => openHabit(el.dataset.id),
-  'habit-suggest': (el) => { const [emoji, name] = HABIT_SUGGESTIONS[+el.dataset.i]; Object.assign(sheet.draft, { emoji, name }); renderSheet(); },
+  'habit-suggest': (el) => { const [emoji, name, m] = HABIT_SUGGESTIONS[+el.dataset.i]; Object.assign(sheet.draft, { emoji, name, time: momentTime(m) }); renderSheet(); },
+  'habit-moment': (el) => { sheet.draft.time = momentTime(el.dataset.v); renderSheet(); },
   'habit-day': (el) => {
     const d = +el.dataset.d;
     const days = sheet.draft.days;
@@ -461,11 +462,10 @@ function obNext() {
 }
 
 function finishOnboarding() {
-  const time = (MOMENTS.find(([id]) => id === ob.moment) || [])[3] || '';
   for (const i of ob.picks) {
     const [emoji, name] = HABIT_SUGGESTIONS[i];
     if (!state.habits.some((h) => h.name === name)) {
-      state.habits.push({ id: uid(), emoji, name, days: [...ALL_DAYS], time, createdAt: keyOf(today()) });
+      state.habits.push({ id: uid(), emoji, name, days: [...ALL_DAYS], time: momentTime(obMoment(i)), createdAt: keyOf(today()) });
     }
   }
   state.profile = { name: ob.name.trim(), onboarded: true };
