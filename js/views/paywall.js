@@ -30,7 +30,7 @@ export function renderPaywall() {
             <input class="input code-input big" id="pw-code" data-pw="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ATLAS-XXXX-XXXX" value="${esc(pw.code)}">
           </label>
           ${err}
-          <button class="pill" type="submit" ${pw.busy ? 'disabled' : ''}>${pw.busy ? 'Activando…' : `${icon('sparkles')} Activar atlas`}</button>
+          <button class="pill" type="submit" ${pw.busy ? 'disabled' : ''}>${pw.busy ? 'Activando…' : `Activar atlas ${icon('arrowRight')}`}</button>
         </form>
         ${BUY_URL ? `<a class="pill ghost pw-buy" href="${esc(BUY_URL)}" target="_blank" rel="noopener">${icon('zap')} Comprar atlas</a>` : ''}
         <p class="hint">${icon('info')} Al comprar, te enviamos tu código al correo. Revisa también spam.</p>` : ''}

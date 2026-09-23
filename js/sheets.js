@@ -244,7 +244,7 @@ function activateSheet() {
     ${field('Código de activación', `<input id="f-redeem" class="input code-input big" data-bind="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ATLAS-XXXX-XXXX" value="${esc(sheet.draft.code || '')}">`)}
     ${sheet.error ? `<p class="form-error">${icon('info')} ${esc(sheet.error)}</p>` : ''}
     ${BUY_URL ? `<p class="hint">${icon('zap')} ¿Aún no tienes código? <a href="${esc(BUY_URL)}" target="_blank" rel="noopener">Comprar atlas</a></p>` : ''}
-    <div class="sheet-actions"><button class="pill" data-action="redeem-sheet" ${sheet.busy ? 'disabled' : ''}>${sheet.busy ? 'Activando…' : `${icon('sparkles')} Activar`}</button></div>`;
+    <div class="sheet-actions"><button class="pill" data-action="redeem-sheet" ${sheet.busy ? 'disabled' : ''}>${sheet.busy ? 'Activando…' : `Activar ${icon('arrowRight')}`}</button></div>`;
 }
 
 function planBlock() {
@@ -258,10 +258,10 @@ function planBlock() {
   const showRedeem = info.state !== 'active' || info.plan !== 'lifetime';
   return field('Tu plan', `
     <div class="account plan">
-      <span class="account-avatar">${icon(info.state === 'active' ? 'crown' : 'sparkles')}</span>
+      <span class="account-avatar">${icon(info.state === 'active' ? 'crown' : 'key')}</span>
       <span class="account-body"><b>${title}</b><small>${sub}</small></span>
     </div>
-    ${showRedeem ? `<button class="pill ghost" data-action="activate" style="margin-top:10px;width:100%">${icon('sparkles')} Canjear código de activación</button>` : ''}`);
+    ${showRedeem ? `<button class="pill ghost" data-action="activate" style="margin-top:10px;width:100%">${icon('key')} Canjear código de activación</button>` : ''}`);
 }
 
 function passwordSheet() {

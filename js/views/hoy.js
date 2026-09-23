@@ -98,7 +98,7 @@ function trialBanner() {
   const urgent = info.daysLeft <= 2;
   return `
     <div class="banner trial${urgent ? ' urgent' : ''}">
-      <span class="banner-icon">${icon('sparkles')}</span>
+      <span class="banner-icon">${icon('key')}</span>
       <span class="banner-body"><b>Prueba gratis · ${info.daysLeft === 1 ? 'te queda 1 día' : `te quedan ${info.daysLeft} días`}</b>
         <small>${urgent ? 'Activa atlas para no perder tu racha.' : 'Disfruta atlas completo. Actívalo cuando quieras.'}</small></span>
       <button class="pill small" data-action="activate">Activar</button>

@@ -62,7 +62,7 @@ export function renderOnboarding() {
       }).join('')}</div>
       <div class="ob-actions">
         <button class="text-btn" data-action="ob-back">${icon('left')} Atrás</button>
-        <button class="pill" data-action="ob-finish">Armar mi sistema ${icon('sparkles')}</button>
+        <button class="pill" data-action="ob-finish">Armar mi sistema ${icon('arrowRight')}</button>
       </div>`;
   }
 
