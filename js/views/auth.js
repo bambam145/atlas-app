@@ -78,7 +78,7 @@ export function renderAuth() {
         </div>
         <p class="auth-foot">Hábitos · Tareas · Metas · Diario — todo en un solo lugar.</p>
       </section>
-      <section class="auth-card" aria-live="polite">${form()}</section>
+      <section class="auth-panel"><div class="auth-card" aria-live="polite">${form()}</div></section>
     </div>`;
 }
 
