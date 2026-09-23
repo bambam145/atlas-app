@@ -14,6 +14,38 @@ export const auth = {
 
 export const resetAuth = (mode = 'login') => Object.assign(auth, { mode, password: '', busy: false, error: '', showPass: false });
 
+const WORDS = ['constante', 'disciplinado', 'imparable', 'productivo'];
+
+// Fuerza de la contraseña: 0 vacía, 1 débil, 2 media, 3 fuerte.
+export function passStrength(p) {
+  if (!p) return 0;
+  let s = 0;
+  if (p.length >= 8) s++;
+  if (p.length >= 12) s++;
+  if (/[A-Z]/.test(p) && /[a-z]/.test(p)) s++;
+  if (/\d/.test(p)) s++;
+  if (/[^A-Za-z0-9]/.test(p)) s++;
+  return p.length < 8 ? 1 : s <= 2 ? 1 : s <= 3 ? 2 : 3;
+}
+export const STRENGTH_LABEL = ['', 'Débil', 'Media', 'Fuerte'];
+
+// Animación del título: cambia la última palabra cada pocos segundos.
+let rotTimer = null;
+export function mountAuthFx() {
+  if (rotTimer) return;
+  let i = 0;
+  rotTimer = setInterval(() => {
+    const el = document.querySelector('.rot-word');
+    if (!el) { clearInterval(rotTimer); rotTimer = null; return; }
+    el.classList.add('out');
+    setTimeout(() => {
+      i = (i + 1) % WORDS.length;
+      el.textContent = WORDS[i];
+      el.classList.remove('out');
+    }, 350);
+  }, 2600);
+}
+
 const FEATURES = [
   ['flame', 'Hábitos con rachas y calendario de constancia'],
   ['tasks', 'Tareas, Kanban, Eisenhower y planner semanal'],
@@ -35,7 +67,7 @@ function preview() {
   const dots = Array.from({ length: WEEKS * 7 }, (_, i) => {
     const w = Math.floor(i / 7);
     if (i >= WEEKS * 7 - 3) return '<i class="f"></i>';
-    return `<i class="${rand(i + 3) < 0.3 + (w / (WEEKS - 1)) * 0.65 ? 'on' : ''}"></i>`;
+    return `<i class="${rand(i + 3) < 0.3 + (w / (WEEKS - 1)) * 0.65 ? 'on' : ''}" style="--d:${i}"></i>`;
   }).join('');
   return `
     <div class="auth-preview" aria-hidden="true">
@@ -71,14 +103,20 @@ export function renderAuth() {
         <div class="auth-logo">${logo(34)}<span>atlas</span></div>
         <div class="auth-hero">
           <div class="auth-copy">
-            <h1 class="auth-title">Solo necesitas <b>un sistema</b> <span>para ser constante.</span></h1>
+            <h1 class="auth-title">Solo necesitas <b>un sistema</b> <span>para ser <em class="rot-word">${WORDS[0]}</em>.</span></h1>
             <ul class="auth-features">${FEATURES.map(([ic, t]) => `<li>${icon(ic)}<span>${t}</span></li>`).join('')}</ul>
           </div>
           ${preview()}
         </div>
         <p class="auth-foot">Hábitos · Tareas · Metas · Diario — todo en un solo lugar.</p>
       </section>
-      <section class="auth-panel"><div class="auth-card" aria-live="polite">${form()}</div></section>
+      <section class="auth-panel">
+        <div class="auth-top">${auth.mode === 'signup'
+          ? `¿Ya tienes cuenta? <button class="inline-link" data-action="auth-mode" data-v="login">Entrar</button>`
+          : `¿Nuevo en atlas? <button class="inline-link" data-action="auth-mode" data-v="signup">Crear cuenta</button>`}</div>
+        <div class="auth-card" aria-live="polite">${form()}</div>
+        <div class="auth-bottom">${icon('shield')} Tus datos están protegidos y solo tú puedes verlos</div>
+      </section>
     </div>`;
 }
 
@@ -94,6 +132,10 @@ const passField = (label, auto) => `
       <button type="button" class="icon-btn sm pass-eye" data-action="auth-eye" aria-label="${auth.showPass ? 'Ocultar' : 'Mostrar'} contraseña">${icon(auth.showPass ? 'eyeOff' : 'eye')}</button>
     </span>
   </label>`;
+export const meter = () => {
+  const s = passStrength(auth.password);
+  return `<div class="pw-meter" data-level="${s}"><i></i><i></i><i></i><span>${STRENGTH_LABEL[s]}</span></div>`;
+};
 const submit = (text, busyText) => `<button class="pill" type="submit" ${auth.busy ? 'disabled' : ''}>${auth.busy ? busyText : text}</button>`;
 
 function form() {
@@ -103,6 +145,7 @@ function form() {
         ${tabs()}
         <form class="auth-form" data-form="auth" novalidate>
           ${emailField()}${passField('Crea una contraseña', 'new-password')}
+          ${meter()}
           ${errorHtml()}
           ${submit('Crear cuenta', 'Creando…')}
         </form>
@@ -151,7 +194,7 @@ function form() {
         <h2 class="auth-h">Crea tu nueva contraseña</h2>
         <p class="auth-p">Úsala desde ahora para entrar a atlas.</p>
         <form class="auth-form" data-form="auth" novalidate>
-          ${passField('Nueva contraseña', 'new-password')}${errorHtml()}
+          ${passField('Nueva contraseña', 'new-password')}${meter()}${errorHtml()}
           ${submit('Guardar y entrar', 'Guardando…')}
         </form>`;
 

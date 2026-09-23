@@ -19,7 +19,7 @@ import { renderLogros } from './views/logros.js';
 import { renderMapa, mountMapa, toggleKind, zoomMapa } from './views/mapa.js';
 import { cloud, cloudEnabled, initCloud, onCloudChange, sendCode, verifyCode, signOut, pull, statusLabel,
   signInPassword, signUp, resetPassword, updatePassword, resendConfirmation, authError } from './cloud.js';
-import { auth, resetAuth, renderAuth, renderSplash } from './views/auth.js';
+import { auth, resetAuth, renderAuth, renderSplash, mountAuthFx, passStrength, STRENGTH_LABEL } from './views/auth.js';
 
 const VIEWS = {
   hoy: renderHoy, tareas: renderTareas, planner: renderPlanner, habitos: renderHabitos,
@@ -40,6 +40,7 @@ function openFromMap(n) {
 const DOCK_MAIN = ['hoy', 'tareas', 'habitos'];
 
 let view = 'hoy';
+let authShownAt = 0;
 let lastView = null;
 let pop = null;
 
@@ -65,6 +66,10 @@ function render() {
     if (sheet) closeSheet();
     if (g === 'newpass' && auth.mode !== 'newpass') resetAuth('newpass');
     app.innerHTML = g === 'splash' ? renderSplash() : renderAuth();
+    // Animaciones de entrada solo al aparecer la pantalla (no al cambiar de pestaña).
+    if (g !== 'splash' && !authShownAt) authShownAt = Date.now();
+    app.querySelector('.auth')?.classList.toggle('intro', Date.now() - authShownAt < 1500);
+    if (g !== 'splash') mountAuthFx();
     lastView = null;
     return;
   }
@@ -252,7 +257,7 @@ const actions = {
   'login-back': () => { Object.assign(sheet, { step: 'email', error: '', busy: false }); renderSheet(); },
   logout: async () => {
     if (!confirm('¿Cerrar sesión? Tus datos quedan guardados en la nube.')) return;
-    await signOut(); resetAuth('login'); view = 'hoy'; render(); toast('Sesión cerrada');
+    await signOut(); resetAuth('login'); view = 'hoy'; authShownAt = 0; render(); toast('Sesión cerrada');
   },
   'change-pass': () => openSheet('password', { draft: { password: '' } }),
   'save-pass': async () => {
@@ -505,7 +510,13 @@ document.addEventListener('keydown', (e) => {
 let journalTimer;
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.dataset.auth) { auth[t.dataset.auth] = t.value; if (auth.error) { auth.error = ''; t.closest('.auth-card')?.querySelector('.form-error')?.remove(); } return; }
+  if (t.dataset.auth) {
+    auth[t.dataset.auth] = t.value;
+    if (auth.error) { auth.error = ''; t.closest('.auth-card')?.querySelector('.form-error')?.remove(); }
+    const m = document.querySelector('.pw-meter');
+    if (m && t.dataset.auth === 'password') { const s = passStrength(t.value); m.dataset.level = s; m.querySelector('span').textContent = STRENGTH_LABEL[s]; }
+    return;
+  }
   if (sheet && t.dataset.bind) {
     if (sheet.type === 'goal-add') sheet[t.dataset.bind] = t.value;
     else sheet.draft[t.dataset.bind] = t.value;
@@ -613,7 +624,7 @@ document.addEventListener('pointerover', (e) => {
 document.addEventListener('scroll', () => tip.classList.remove('is-on'), { passive: true });
 
 // Si cambia el día con la app abierta, refrescar al volver.
-document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !gate()) render(); });
 
 document.getElementById('side-brand').innerHTML = `${logo(30)}<span>atlas</span>`;
 render();
@@ -637,7 +648,7 @@ onCloudChange(() => {
   userWas = uid;
   if (sheet?.type === 'settings') renderSheet();
   const now = cloudBannerVisible();
-  if (now !== bannerWas && view === 'hoy') render();
+  if (now !== bannerWas && view === 'hoy' && !gate()) render();
   bannerWas = now;
 });
 initCloud();
