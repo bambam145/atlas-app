@@ -29,14 +29,18 @@ function preview() {
     ['📚', 'Leer 10 páginas', '9 días', false],
     ['🏋️', 'Entrenar', '4 días', false],
   ];
-  // Patrón fijo de constancia: más lleno hacia las semanas recientes.
-  const dots = Array.from({ length: 16 * 7 }, (_, i) => {
-    const week = Math.floor(i / 7);
-    const on = (i * 37 + week * 11) % 10 < 3 + week / 2.6;
-    return `<i class="${i > 16 * 7 - 5 ? 'f' : on ? 'on' : ''}"></i>`;
+  // Constancia que mejora con el tiempo: semanas antiguas con huecos, recientes casi llenas.
+  const WEEKS = 15;
+  const rand = (i) => { const x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x); };
+  const dots = Array.from({ length: WEEKS * 7 }, (_, i) => {
+    const w = Math.floor(i / 7);
+    if (i >= WEEKS * 7 - 3) return '<i class="f"></i>';
+    return `<i class="${rand(i + 3) < 0.3 + (w / (WEEKS - 1)) * 0.65 ? 'on' : ''}"></i>`;
   }).join('');
   return `
     <div class="auth-preview" aria-hidden="true">
+      <span class="ap-chip ap-chip-streak">${icon('flame')} 13 días de racha</span>
+      <span class="ap-chip ap-chip-level"><b>12</b> Nivel · Imparable</span>
       <div class="ap-card ap-today">
         <div class="ap-head"><span>Hoy</span><b>2 de 4 hábitos</b></div>
         <div class="ap-bar"><i></i></div>
@@ -50,7 +54,8 @@ function preview() {
       </div>
       <div class="ap-card ap-grid">
         <div class="ap-head"><span>Constancia</span><b>87%</b></div>
-        <div class="ap-dots">${dots}</div>
+        <div class="ap-dots" style="--weeks:${WEEKS}">${dots}</div>
+        <div class="ap-legend"><span>Hace 15 semanas</span><span>Hoy</span></div>
       </div>
     </div>`;
 }
@@ -65,10 +70,13 @@ export function renderAuth() {
       <section class="auth-brand">
         <div class="auth-logo">${logo(34)}<span>atlas</span></div>
         <div class="auth-hero">
-          <h1 class="auth-title">Solo necesitas <b>un sistema</b> <span>para ser constante.</span></h1>
+          <div class="auth-copy">
+            <h1 class="auth-title">Solo necesitas <b>un sistema</b> <span>para ser constante.</span></h1>
+            <ul class="auth-features">${FEATURES.map(([ic, t]) => `<li>${icon(ic)}<span>${t}</span></li>`).join('')}</ul>
+          </div>
           ${preview()}
         </div>
-        <ul class="auth-features">${FEATURES.map(([ic, t]) => `<li>${icon(ic)}<span>${t}</span></li>`).join('')}</ul>
+        <p class="auth-foot">Hábitos · Tareas · Metas · Diario — todo en un solo lugar.</p>
       </section>
       <section class="auth-card" aria-live="polite">${form()}</section>
     </div>`;
