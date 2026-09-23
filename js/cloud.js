@@ -21,8 +21,11 @@ const listeners = new Set();
 export const onCloudChange = (fn) => listeners.add(fn);
 const setStatus = (s) => { status = s; listeners.forEach((fn) => fn()); };
 
+let recovery = false; // llegó desde "olvidé mi contraseña": pedir la nueva
+
 export const cloud = {
   get user() { return user; },
+  get recovery() { return recovery; },
   get status() { return status; },
   get lastSyncAt() { return lastSyncAt; },
 };
@@ -66,15 +69,18 @@ export async function initCloud() {
     const c = await client();
     const { data } = await c.auth.getSession();
     user = data.session?.user || null;
-    c.auth.onAuthStateChange((_event, session) => {
+    c.auth.onAuthStateChange((event, session) => {
       const prev = user?.id;
       user = session?.user || null;
+      if (event === 'PASSWORD_RECOVERY') { recovery = true; setStatus(status); }
       if (!user) { setStatus('signedout'); return; }
       // No llamar a Supabase dentro del callback: diferirlo.
       if (user.id !== prev) setTimeout(() => pull().catch(onError), 0);
     });
     if (user) await pull(); else setStatus('signedout');
   } catch (e) {
+    // Sin internet y sin la librería en caché: si había sesión guardada, dejar entrar en modo local.
+    try { user = user || JSON.parse(localStorage.getItem('atlas-auth'))?.user || null; } catch { /* ignorar */ }
     onError(e);
   }
 
@@ -120,12 +126,68 @@ export async function verifyCode(email, token) {
   return data.user;
 }
 
+// Cerrar sesión: sube lo pendiente y limpia este dispositivo (los datos quedan en la nube).
 export async function signOut() {
   const c = await client();
-  await c.auth.signOut();
+  if (user && readMeta().dirty) { try { await push(); } catch { /* sin conexión: se pierde lo no subido */ } }
+  try { await c.auth.signOut({ scope: 'local' }); } catch { /* sin conexión: igual cerrar localmente */ }
   user = null;
+  applyingRemote = true;
+  replaceState({ theme: state.theme });
+  applyingRemote = false;
   writeMeta({ userId: null, remoteAt: 0, dirty: false });
   setStatus('signedout');
+}
+
+/* ---------- Correo + contraseña ---------- */
+
+const redirect = () => location.origin + location.pathname;
+
+export async function signInPassword(email, password) {
+  const c = await client();
+  const { error } = await c.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+}
+
+// Devuelve true si hace falta confirmar el correo antes de entrar.
+export async function signUp(email, password) {
+  const c = await client();
+  const { data, error } = await c.auth.signUp({ email, password, options: { emailRedirectTo: redirect() } });
+  if (error) throw error;
+  return !data.session;
+}
+
+export async function resetPassword(email) {
+  const c = await client();
+  const { error } = await c.auth.resetPasswordForEmail(email, { redirectTo: redirect() });
+  if (error) throw error;
+}
+
+export async function updatePassword(password) {
+  const c = await client();
+  const { error } = await c.auth.updateUser({ password });
+  if (error) throw error;
+  recovery = false;
+  setStatus(status);
+}
+
+export async function resendConfirmation(email) {
+  const c = await client();
+  const { error } = await c.auth.resend({ type: 'signup', email, options: { emailRedirectTo: redirect() } });
+  if (error) throw error;
+}
+
+// Mensajes de error de Supabase → español claro.
+export function authError(e) {
+  const m = (e && (e.message || e.error_description)) || '';
+  if (/invalid login credentials/i.test(m)) return 'Correo o contraseña incorrectos.';
+  if (/email not confirmed/i.test(m)) return 'Primero confirma tu correo: revisa tu bandeja (y spam).';
+  if (/already registered|already exists/i.test(m)) return 'Ese correo ya tiene cuenta. Entra o recupera tu contraseña.';
+  if (/rate limit|seconds|too many/i.test(m)) return 'Demasiados intentos. Espera un minuto y vuelve a intentar.';
+  if (/password.*(at least|short|weak)|weak/i.test(m)) return 'La contraseña es muy débil: usa al menos 8 caracteres.';
+  if (/same password|different from the old/i.test(m)) return 'La nueva contraseña debe ser distinta a la anterior.';
+  if (/fetch|network|failed to/i.test(m) || !navigator.onLine) return 'Sin conexión. Revisa tu internet e inténtalo de nuevo.';
+  return 'Algo salió mal. Inténtalo de nuevo.';
 }
 
 /* ---------- Sincronización ---------- */

@@ -14,7 +14,7 @@ export let sheet = null;
 export function openSheet(type, data = {}) {
   sheet = { type, fresh: true, emojiOpen: false, ...data };
   renderSheet();
-  const focus = { habit: 'f-name', task: 'f-title', goal: 'f-title', 'goal-add': 'f-amount', login: 'f-email' }[type];
+  const focus = { habit: 'f-name', task: 'f-title', goal: 'f-title', 'goal-add': 'f-amount', login: 'f-email', password: 'f-pass' }[type];
   if (focus && data.mode !== 'edit') setTimeout(() => document.getElementById(focus)?.focus({ preventScroll: true }), 320);
 }
 
@@ -30,7 +30,7 @@ export function renderSheet() {
   const enter = sheet.fresh ? ' enter' : '';
   sheet.fresh = false;
   document.body.classList.add('has-sheet');
-  const body = { habit: habitSheet, task: taskSheet, goal: goalSheet, 'goal-add': goalAddSheet, new: newSheet, more: moreSheet, settings: settingsSheet, login: loginSheet }[sheet.type]();
+  const body = { habit: habitSheet, task: taskSheet, goal: goalSheet, 'goal-add': goalAddSheet, new: newSheet, more: moreSheet, settings: settingsSheet, login: loginSheet, password: passwordSheet }[sheet.type]();
   root.innerHTML = `
     <div class="backdrop${enter}" data-action="close-sheet"></div>
     <div class="sheet${enter} sheet-${sheet.type}" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
@@ -231,6 +231,15 @@ function loginSheet() {
     </div>`;
 }
 
+function passwordSheet() {
+  return `
+    <h2 id="sheet-title">Contraseña</h2>
+    <p class="summary">Crea o cambia tu contraseña para entrar con correo y contraseña. El enlace por correo seguirá funcionando.</p>
+    ${field('Nueva contraseña', `<input id="f-pass" class="input" type="password" data-bind="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres">`)}
+    ${sheet.error ? `<p class="form-error">${icon('info')} ${esc(sheet.error)}</p>` : ''}
+    <div class="sheet-actions"><button class="pill" data-action="save-pass" ${sheet.busy ? 'disabled' : ''}>${sheet.busy ? 'Guardando…' : 'Guardar contraseña'}</button></div>`;
+}
+
 function accountBlock() {
   if (!cloudEnabled) return '';
   if (!cloud.user) {
@@ -245,8 +254,9 @@ function accountBlock() {
     </div>
     <div class="stack">
       <button class="pill ghost" data-action="sync-now">${icon('repeat')} Sincronizar</button>
-      <button class="pill ghost" data-action="logout">${icon('arrowRight')} Cerrar sesión</button>
-    </div>`);
+      <button class="pill ghost" data-action="change-pass">${icon('lock')} Contraseña</button>
+    </div>
+    <button class="link-danger left logout-link" data-action="logout">${icon('logout')} Cerrar sesión</button>`);
 }
 
 function settingsSheet() {

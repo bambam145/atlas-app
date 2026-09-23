@@ -527,6 +527,62 @@ b { font-weight: 600; }
 .mini-bar { display: inline-block; width: 60px; height: 6px; margin-right: 8px; vertical-align: middle; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
 .mini-bar i { display: block; height: 100%; background: var(--text); }
 
+/* ---------- Pantalla de entrada ---------- */
+body.auth-mode .side, body.auth-mode .dock { display: none !important; }
+body.auth-mode .app { max-width: none; margin: 0; padding: 0; }
+.auth-splash { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+.auth-spin { width: 22px; height: 22px; border: 2px solid var(--surface-3); border-top-color: var(--text); border-radius: 50%; animation: spin 0.9s linear infinite; }
+.auth {
+  min-height: 100dvh; display: grid; align-items: center; justify-items: center;
+  padding: calc(env(safe-area-inset-top) + 32px) 20px calc(env(safe-area-inset-bottom) + 32px);
+  background: radial-gradient(70% 55% at 50% 0%, var(--glow), transparent 70%);
+}
+.auth-brand { display: none; }
+.auth-card { width: 100%; max-width: 400px; display: flex; flex-direction: column; }
+.auth-mobile-logo { display: flex; margin-bottom: 26px; }
+.auth-h { margin: 0 0 6px; font-size: 32px; font-weight: 400; letter-spacing: -0.05em; line-height: 1.1; }
+.auth-p { margin: 0 0 22px; font-size: 15px; line-height: 1.5; color: var(--text-2); }
+.auth-p b { color: var(--text); }
+.auth-tabs { margin-bottom: 22px; }
+.auth-form { display: flex; flex-direction: column; gap: 14px; }
+.auth-form .pill { flex: none; margin-top: 6px; }
+.auth-field { display: flex; flex-direction: column; gap: 7px; }
+.auth-field > span:first-child { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); padding-left: 4px; }
+.pass-wrap { position: relative; display: block; }
+.pass-wrap .input { padding-right: 48px; }
+.pass-eye { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
+.text-btn.forgot { align-self: flex-end; margin: -6px 0 0; padding: 2px 4px; font-size: 12.5px; color: var(--text-3); }
+.auth-card > .text-btn { align-self: flex-start; margin: 0 0 18px -4px; }
+.auth-or { display: flex; align-items: center; gap: 12px; margin: 22px 0; font-size: 12px; color: var(--text-3); }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.auth-card > .pill { flex: none; }
+.auth-legal { margin: 16px 4px 0; font-size: 12px; line-height: 1.5; color: var(--text-3); text-align: center; }
+.auth-sent { display: flex; flex-direction: column; align-items: flex-start; }
+.auth-sent-icon { width: 56px; height: 56px; display: grid; place-items: center; margin-bottom: 22px; border-radius: 18px; background: var(--surface-2); }
+.auth-sent-icon .i { width: 24px; height: 24px; }
+.auth-sent .waiting { margin: 0 0 20px; }
+.auth-sent .pill { width: 100%; flex: none; }
+.auth-sent .text-btn { margin-top: 14px; }
+.logout-link { margin-top: 14px; }
+
+@media (min-width: 960px) {
+  .auth { grid-template-columns: 1.1fr 1fr; gap: 0; padding: 0; align-items: stretch; }
+  .auth-brand {
+    display: flex; flex-direction: column; justify-content: space-between; align-self: stretch; width: 100%;
+    padding: 56px 64px; border-right: 1px solid var(--border);
+    background: radial-gradient(90% 60% at 30% 40%, var(--surface-2), transparent 70%);
+  }
+  .auth-logo { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 600; letter-spacing: -0.04em; }
+  .auth-title { margin: 0; max-width: 560px; font-size: 64px; font-weight: 300; line-height: 1.02; letter-spacing: -0.055em; }
+  .auth-title b { font-weight: 600; }
+  .auth-title span { color: var(--text-3); }
+  .auth-features { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+  .auth-features li { display: flex; align-items: center; gap: 12px; font-size: 15px; color: var(--text-2); }
+  .auth-features .i { width: 20px; height: 20px; color: var(--text); }
+  .auth-card { align-self: center; padding: 40px; }
+  .auth-mobile-logo { display: none; }
+}
+
 /* ---------- Cuenta / nube ---------- */
 .form-error { display: flex; align-items: center; gap: 6px; margin: 10px 4px 0; font-size: 13px; font-weight: 600; color: var(--bad); }
 .form-error .i { width: 15px; height: 15px; }

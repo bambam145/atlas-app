@@ -17,7 +17,9 @@ import { renderDiario, diaryDate, setDiaryDate } from './views/diario.js';
 import { renderStats } from './views/stats.js';
 import { renderLogros } from './views/logros.js';
 import { renderMapa, mountMapa, toggleKind, zoomMapa } from './views/mapa.js';
-import { cloud, cloudEnabled, initCloud, onCloudChange, sendCode, verifyCode, signOut, pull, statusLabel } from './cloud.js';
+import { cloud, cloudEnabled, initCloud, onCloudChange, sendCode, verifyCode, signOut, pull, statusLabel,
+  signInPassword, signUp, resetPassword, updatePassword, resendConfirmation, authError } from './cloud.js';
+import { auth, resetAuth, renderAuth, renderSplash } from './views/auth.js';
 
 const VIEWS = {
   hoy: renderHoy, tareas: renderTareas, planner: renderPlanner, habitos: renderHabitos,
@@ -43,11 +45,29 @@ let pop = null;
 
 /* ---------- Render ---------- */
 
+// Cuenta obligatoria: sin sesión se muestra la pantalla de entrada.
+function gate() {
+  if (!cloudEnabled) return null;
+  if (cloud.status === 'loading') return 'splash';
+  if (cloud.recovery) return 'newpass';
+  if (!cloud.user) return 'auth';
+  return null;
+}
+
 function render() {
   document.documentElement.dataset.theme = state.theme;
   document.querySelector('meta[name="theme-color"]').content = state.theme === 'light' ? '#F5F5F5' : '#000000';
 
   const app = document.getElementById('app');
+  const g = gate();
+  document.body.classList.toggle('auth-mode', !!g);
+  if (g) {
+    if (sheet) closeSheet();
+    if (g === 'newpass' && auth.mode !== 'newpass') resetAuth('newpass');
+    app.innerHTML = g === 'splash' ? renderSplash() : renderAuth();
+    lastView = null;
+    return;
+  }
   app.dataset.view = view;
   app.innerHTML = VIEWS[view]({ pop });
   pop = null;
@@ -231,8 +251,25 @@ const actions = {
   'show-code': () => { sheet.showCode = true; renderSheet(); setTimeout(() => document.getElementById('f-code')?.focus(), 50); },
   'login-back': () => { Object.assign(sheet, { step: 'email', error: '', busy: false }); renderSheet(); },
   logout: async () => {
-    if (!confirm('¿Cerrar sesión? Tus datos se quedan en este dispositivo y en la nube.')) return;
-    await signOut(); toast('Sesión cerrada'); render();
+    if (!confirm('¿Cerrar sesión? Tus datos quedan guardados en la nube.')) return;
+    await signOut(); resetAuth('login'); view = 'hoy'; render(); toast('Sesión cerrada');
+  },
+  'change-pass': () => openSheet('password', { draft: { password: '' } }),
+  'save-pass': async () => {
+    const pw = sheet.draft.password || '';
+    if (pw.length < 8) { sheet.error = 'Usa al menos 8 caracteres'; renderSheet(); return; }
+    Object.assign(sheet, { busy: true, error: '' }); renderSheet();
+    try { await updatePassword(pw); closeSheet(); toast('✓ Contraseña guardada'); }
+    catch (e) { Object.assign(sheet, { busy: false, error: authError(e) }); renderSheet(); }
+  },
+
+  // Pantalla de entrada
+  'auth-mode': (el) => { resetAuth(el.dataset.v); render(); setTimeout(() => document.getElementById('a-email')?.focus(), 30); },
+  'auth-eye': () => { auth.showPass = !auth.showPass; render(); document.getElementById('a-pass')?.focus(); },
+  'auth-resend': async () => {
+    Object.assign(auth, { busy: true, error: '' }); render();
+    try { await resendConfirmation(auth.email); toast('Correo reenviado'); } catch (e) { auth.error = authError(e); }
+    auth.busy = false; render();
   },
   'sync-now': () => pull().then(() => toast('✓ Sincronizado')).catch(() => toast('No se pudo sincronizar. Revisa tu conexión.')),
   'cloud-banner-off': () => { state.ui.cloudBannerOff = true; save(); render(); },
@@ -374,6 +411,34 @@ const actions = {
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const markLoginPending = () => { try { localStorage.setItem('atlas-login-pending', '1'); } catch { /* ignorar */ } };
+
+async function submitAuth() {
+  const mode = auth.mode;
+  const email = auth.email.trim().toLowerCase();
+  const fail = (msg) => { auth.error = msg; render(); };
+  if (['login', 'signup', 'forgot', 'link'].includes(mode) && !EMAIL_RE.test(email)) return fail('Escribe un correo válido.');
+  if (mode === 'login' && !auth.password) return fail('Escribe tu contraseña.');
+  if ((mode === 'signup' || mode === 'newpass') && auth.password.length < 8) return fail('La contraseña debe tener al menos 8 caracteres.');
+
+  Object.assign(auth, { email, busy: true, error: '' });
+  render();
+  try {
+    if (mode === 'login') { markLoginPending(); await signInPassword(email, auth.password); }
+    else if (mode === 'signup') {
+      markLoginPending();
+      const mustConfirm = await signUp(email, auth.password);
+      if (mustConfirm) resetAuth('sent-confirm');
+    }
+    else if (mode === 'forgot') { await resetPassword(email); resetAuth('sent-reset'); }
+    else if (mode === 'link') { markLoginPending(); await sendCode(email); resetAuth('sent-link'); }
+    else if (mode === 'newpass') { await updatePassword(auth.password); resetAuth('login'); toast('✓ Contraseña guardada'); }
+  } catch (e) {
+    auth.error = authError(e);
+  }
+  auth.busy = false;
+  render();
+}
 
 async function sendLoginCode() {
   const email = (sheet.draft.email || '').trim().toLowerCase();
@@ -433,12 +498,14 @@ document.addEventListener('keydown', (e) => {
     else if (t.id === 'f-amount') { e.preventDefault(); saveGoalAdd(); }
     else if (t.id === 'f-email') { e.preventDefault(); sendLoginCode(); }
     else if (t.id === 'f-code') { e.preventDefault(); verifyLoginCode(); }
+    else if (t.id === 'f-pass') { e.preventDefault(); actions['save-pass'](); }
   }
 });
 
 let journalTimer;
 document.addEventListener('input', (e) => {
   const t = e.target;
+  if (t.dataset.auth) { auth[t.dataset.auth] = t.value; if (auth.error) { auth.error = ''; t.closest('.auth-card')?.querySelector('.form-error')?.remove(); } return; }
   if (sheet && t.dataset.bind) {
     if (sheet.type === 'goal-add') sheet[t.dataset.bind] = t.value;
     else sheet.draft[t.dataset.bind] = t.value;
@@ -475,6 +542,7 @@ async function importBackup(input) {
 }
 
 document.addEventListener('submit', (e) => {
+  if (e.target.closest('[data-form="auth"]')) { e.preventDefault(); submitAuth(); return; }
   const form = e.target.closest('[data-form="quick-task"]');
   if (!form) return;
   e.preventDefault();
@@ -553,8 +621,11 @@ render();
 // Nube: al cambiar el estado, actualizar el indicador y la hoja de ajustes abierta.
 let bannerWas = cloudBannerVisible();
 let userWas = null;
+let gateWas = gate();
 onCloudChange(() => {
   paintSyncBadge();
+  const g = gate();
+  if (g !== gateWas) { gateWas = g; render(); }
   // Recién inició sesión (por enlace o por código): cerrar la espera y avisar.
   const uid = cloud.user?.id || null;
   if (uid && uid !== userWas) {
