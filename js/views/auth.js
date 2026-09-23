@@ -1,6 +1,7 @@
 // Pantalla de entrada (cuenta obligatoria): entrar, crear cuenta, enlace por correo y recuperar contraseña.
 import { icon, logo } from '../icons.js';
 import { esc } from '../util.js';
+import { EMAIL_CODES } from '../config.js';
 
 // Estado del formulario (vive solo mientras se muestra la pantalla).
 export const auth = {
@@ -178,16 +179,20 @@ function form() {
     case 'sent-link':
     case 'sent-confirm':
     case 'sent-reset': {
-      const what = { 'sent-link': ['Revisa tu correo', 'Toca el botón <b>Log In</b> del correo para entrar.'],
-        'sent-confirm': ['Confirma tu correo', 'Toca el botón <b>Confirm your mail</b> para activar tu cuenta y entrar.'],
-        'sent-reset': ['Revisa tu correo', 'Toca el botón <b>Reset Password</b> para crear una contraseña nueva.'] }[auth.mode];
+      const what = EMAIL_CODES
+        ? { 'sent-link': ['Revisa tu correo', 'Escribe el código de 6 dígitos o toca el botón <b>Entrar a atlas</b>.'],
+          'sent-confirm': ['Confirma tu correo', 'Escribe el código de 6 dígitos o toca el botón <b>Confirmar mi cuenta</b>.'],
+          'sent-reset': ['Revisa tu correo', 'Toca el botón <b>Crear nueva contraseña</b> del correo.'] }[auth.mode]
+        : { 'sent-link': ['Revisa tu correo', 'Abre el correo y toca el botón <b>Log In</b>. No necesitas escribir ningún código.'],
+          'sent-confirm': ['Confirma tu correo', 'Abre el correo y toca el botón <b>Confirm your mail</b>. No necesitas escribir ningún código: al tocarlo, entras solo.'],
+          'sent-reset': ['Revisa tu correo', 'Abre el correo y toca el botón <b>Reset Password</b> para crear una contraseña nueva.'] }[auth.mode];
       return `
         <div class="auth-sent">
           <span class="auth-sent-icon">${icon('send')}</span>
           <h2 class="auth-h">${what[0]}</h2>
           <p class="auth-p">Enviamos un correo de <b>Supabase Auth</b> a <b>${esc(auth.email)}</b>. ${what[1]}</p>
           <p class="hint waiting">${icon('repeat')} Esperando… esta pantalla avanza sola. Revisa también spam.</p>
-          ${auth.mode !== 'sent-reset' ? `
+          ${auth.mode !== 'sent-reset' && EMAIL_CODES ? `
           <form class="auth-form code-form" data-form="auth" novalidate>
             <label class="auth-field"><span>¿Te llegó un código? Escríbelo</span>
               <input class="input code-input" id="a-code" data-auth="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" value="${esc(auth.code || '')}">
