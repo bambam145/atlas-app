@@ -21,6 +21,40 @@ const FEATURES = [
   ['repeat', 'Sincronizado entre tu celular y tu computadora'],
 ];
 
+// Vista previa decorativa de la app (solo en pantallas grandes).
+function preview() {
+  const rows = [
+    ['💧', 'Tomar 2 L de agua', '13 días', true],
+    ['🧘', 'Meditar 5 min', '8 días', true],
+    ['📚', 'Leer 10 páginas', '9 días', false],
+    ['🏋️', 'Entrenar', '4 días', false],
+  ];
+  // Patrón fijo de constancia: más lleno hacia las semanas recientes.
+  const dots = Array.from({ length: 16 * 7 }, (_, i) => {
+    const week = Math.floor(i / 7);
+    const on = (i * 37 + week * 11) % 10 < 3 + week / 2.6;
+    return `<i class="${i > 16 * 7 - 5 ? 'f' : on ? 'on' : ''}"></i>`;
+  }).join('');
+  return `
+    <div class="auth-preview" aria-hidden="true">
+      <div class="ap-card ap-today">
+        <div class="ap-head"><span>Hoy</span><b>2 de 4 hábitos</b></div>
+        <div class="ap-bar"><i></i></div>
+        ${rows.map(([e, n, s, d]) => `
+          <div class="ap-row${d ? ' done' : ''}">
+            <span class="ap-check">${d ? icon('check') : ''}</span>
+            <span class="ap-emoji">${e}</span>
+            <span class="ap-name">${n}</span>
+            <span class="ap-streak">${icon('flame')} ${s}</span>
+          </div>`).join('')}
+      </div>
+      <div class="ap-card ap-grid">
+        <div class="ap-head"><span>Constancia</span><b>87%</b></div>
+        <div class="ap-dots">${dots}</div>
+      </div>
+    </div>`;
+}
+
 export function renderSplash() {
   return `<div class="auth-splash">${logo(52)}<span class="auth-spin"></span></div>`;
 }
@@ -30,7 +64,10 @@ export function renderAuth() {
     <div class="auth">
       <section class="auth-brand">
         <div class="auth-logo">${logo(34)}<span>atlas</span></div>
-        <h1 class="auth-title">Solo necesitas <b>un sistema</b> <span>para ser constante.</span></h1>
+        <div class="auth-hero">
+          <h1 class="auth-title">Solo necesitas <b>un sistema</b> <span>para ser constante.</span></h1>
+          ${preview()}
+        </div>
         <ul class="auth-features">${FEATURES.map(([ic, t]) => `<li>${icon(ic)}<span>${t}</span></li>`).join('')}</ul>
       </section>
       <section class="auth-card" aria-live="polite">${form()}</section>
