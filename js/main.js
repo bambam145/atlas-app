@@ -18,9 +18,11 @@ import { renderStats } from './views/stats.js';
 import { renderLogros } from './views/logros.js';
 import { renderMapa, mountMapa, toggleKind, zoomMapa } from './views/mapa.js';
 import { cloud, cloudEnabled, initCloud, onCloudChange, sendCode, verifyCode, signOut, pull, statusLabel,
-  signInPassword, signUp, resetPassword, updatePassword, resendConfirmation, authError } from './cloud.js';
+  signInPassword, signUp, resetPassword, updatePassword, resendConfirmation, authError,
+  licenseInfo, redeemCode, fetchLicense, PLAN_LABEL } from './cloud.js';
 import { auth, resetAuth, renderAuth, renderSplash, mountAuthFx, passStrength, STRENGTH_LABEL } from './views/auth.js';
 import { ob, obSteps, obMoment, renderOnboarding } from './views/onboarding.js';
+import { pw, renderPaywall } from './views/paywall.js';
 
 const VIEWS = {
   hoy: renderHoy, tareas: renderTareas, planner: renderPlanner, habitos: renderHabitos,
@@ -55,6 +57,7 @@ function gate() {
     if (!cloud.user) return 'auth';
     // Primera sincronización en este dispositivo: esperar los datos de la nube antes de decidir.
     if (cloud.status === 'syncing' && !state.profile) return 'splash';
+    if (!licenseInfo().ok) return 'paywall';
   }
   if (!state.profile?.onboarded) return 'onboarding';
   return null;
@@ -70,6 +73,11 @@ function render() {
   if (g) {
     if (sheet) closeSheet();
     if (g === 'newpass' && auth.mode !== 'newpass') resetAuth('newpass');
+    if (g === 'paywall') {
+      app.innerHTML = renderPaywall();
+      lastView = null;
+      return;
+    }
     if (g === 'onboarding') {
       if (!ob.name && cloud.user?.user_metadata?.name) ob.name = cloud.user.user_metadata.name;
       app.innerHTML = renderOnboarding();
@@ -279,6 +287,15 @@ const actions = {
     catch (e) { Object.assign(sheet, { busy: false, error: authError(e) }); renderSheet(); }
   },
 
+  // Licencia y códigos
+  activate: () => openSheet('activate', { draft: { code: '' } }),
+  'redeem-sheet': async () => {
+    Object.assign(sheet, { busy: true, error: '' }); renderSheet();
+    const msg = await tryRedeem(sheet.draft.code);
+    if (msg) { Object.assign(sheet, { busy: false, error: msg }); renderSheet(); } else closeSheet();
+  },
+  'pw-logout': async () => { await signOut(); resetAuth('login'); authShownAt = 0; view = 'hoy'; render(); },
+
   // Bienvenida
   'ob-next': () => obNext(),
   'ob-back': () => { ob.step = Math.max(0, ob.step - 1); ob.error = ''; render(); },
@@ -445,6 +462,31 @@ const actions = {
   'new-note': () => { setDiaryDate(null); go('diario'); setTimeout(() => document.querySelector('[data-journal]')?.focus(), 350); },
 };
 
+/* ---------- Códigos de activación ---------- */
+
+// Devuelve un mensaje de error, o '' si se activó.
+async function tryRedeem(raw) {
+  try {
+    const r = await redeemCode(raw);
+    toast(`🎉 ¡atlas activado! Plan: ${PLAN_LABEL[r?.plan] || 'activo'}`);
+    render();
+    return '';
+  } catch (e) {
+    if (e.message === 'format') return 'El código tiene este formato: ATLAS-XXXX-XXXX';
+    if (e.message === 'invalid') return 'Ese código no existe. Revisa que esté bien escrito.';
+    if (e.message === 'used') return 'Ese código ya fue usado.';
+    return authError(e);
+  }
+}
+
+async function submitRedeem() {
+  Object.assign(pw, { busy: true, error: '' });
+  render();
+  const msg = await tryRedeem(pw.code);
+  Object.assign(pw, { busy: false, error: msg, code: msg ? pw.code : '' });
+  render();
+}
+
 /* ---------- Bienvenida ---------- */
 
 function obNext() {
@@ -584,12 +626,14 @@ document.addEventListener('keydown', (e) => {
     else if (t.id === 'f-email') { e.preventDefault(); sendLoginCode(); }
     else if (t.id === 'f-code') { e.preventDefault(); verifyLoginCode(); }
     else if (t.id === 'f-pass') { e.preventDefault(); actions['save-pass'](); }
+    else if (t.id === 'f-redeem') { e.preventDefault(); actions['redeem-sheet'](); }
   }
 });
 
 let journalTimer;
 document.addEventListener('input', (e) => {
   const t = e.target;
+  if (t.dataset.pw) { pw[t.dataset.pw] = t.value; if (pw.error) { pw.error = ''; t.closest('form')?.querySelector('.form-error')?.remove(); } return; }
   if (t.dataset.ob) { ob[t.dataset.ob] = t.value; if (ob.error) { ob.error = ''; t.parentElement.querySelector('.form-error')?.remove(); } return; }
   if (t.dataset.auth) {
     auth[t.dataset.auth] = t.value;
@@ -636,6 +680,7 @@ async function importBackup(input) {
 document.addEventListener('submit', (e) => {
   if (e.target.closest('[data-form="auth"]')) { e.preventDefault(); submitAuth(); return; }
   if (e.target.closest('[data-form="ob"]')) { e.preventDefault(); obNext(); return; }
+  if (e.target.closest('[data-form="redeem"]')) { e.preventDefault(); submitRedeem(); return; }
   const form = e.target.closest('[data-form="quick-task"]');
   if (!form) return;
   e.preventDefault();

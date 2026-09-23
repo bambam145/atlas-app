@@ -7,14 +7,15 @@ import { findTask, STATUS, CATEGORY_ICON } from './tasks.js';
 import { findGoal, GOAL_SUGGESTIONS, currentOf } from './goals.js';
 import { fmtAmount } from './views/metas.js';
 import { levelCard } from './views/hoy.js';
-import { cloud, cloudEnabled, statusLabel } from './cloud.js';
+import { cloud, cloudEnabled, statusLabel, licenseInfo, PLAN_LABEL } from './cloud.js';
+import { BUY_URL } from './config.js';
 
 export let sheet = null;
 
 export function openSheet(type, data = {}) {
   sheet = { type, fresh: true, emojiOpen: false, ...data };
   renderSheet();
-  const focus = { habit: 'f-name', task: 'f-title', goal: 'f-title', 'goal-add': 'f-amount', login: 'f-email', password: 'f-pass' }[type];
+  const focus = { habit: 'f-name', task: 'f-title', goal: 'f-title', 'goal-add': 'f-amount', login: 'f-email', password: 'f-pass', activate: 'f-redeem' }[type];
   if (focus && data.mode !== 'edit') setTimeout(() => document.getElementById(focus)?.focus({ preventScroll: true }), 320);
 }
 
@@ -30,7 +31,7 @@ export function renderSheet() {
   const enter = sheet.fresh ? ' enter' : '';
   sheet.fresh = false;
   document.body.classList.add('has-sheet');
-  const body = { habit: habitSheet, task: taskSheet, goal: goalSheet, 'goal-add': goalAddSheet, new: newSheet, more: moreSheet, settings: settingsSheet, login: loginSheet, password: passwordSheet }[sheet.type]();
+  const body = { habit: habitSheet, task: taskSheet, goal: goalSheet, 'goal-add': goalAddSheet, new: newSheet, more: moreSheet, settings: settingsSheet, login: loginSheet, password: passwordSheet, activate: activateSheet }[sheet.type]();
   root.innerHTML = `
     <div class="backdrop${enter}" data-action="close-sheet"></div>
     <div class="sheet${enter} sheet-${sheet.type}" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
@@ -236,6 +237,33 @@ function loginSheet() {
     </div>`;
 }
 
+function activateSheet() {
+  return `
+    <h2 id="sheet-title">Activa atlas. <span>Sin límites.</span></h2>
+    <p class="summary">Escribe el código de activación que recibiste por correo al comprar.</p>
+    ${field('Código de activación', `<input id="f-redeem" class="input code-input big" data-bind="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ATLAS-XXXX-XXXX" value="${esc(sheet.draft.code || '')}">`)}
+    ${sheet.error ? `<p class="form-error">${icon('info')} ${esc(sheet.error)}</p>` : ''}
+    ${BUY_URL ? `<p class="hint">${icon('zap')} ¿Aún no tienes código? <a href="${esc(BUY_URL)}" target="_blank" rel="noopener">Comprar atlas</a></p>` : ''}
+    <div class="sheet-actions"><button class="pill" data-action="redeem-sheet" ${sheet.busy ? 'disabled' : ''}>${sheet.busy ? 'Activando…' : `${icon('sparkles')} Activar`}</button></div>`;
+}
+
+function planBlock() {
+  if (!cloudEnabled || !cloud.user) return '';
+  const info = licenseInfo();
+  const fmt = (iso) => new Date(iso).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' });
+  let title = 'Cargando…';
+  let sub = '';
+  if (info.state === 'trial') { title = 'Prueba gratis'; sub = `Te ${info.daysLeft === 1 ? 'queda 1 día' : `quedan ${info.daysLeft} días`} · hasta el ${fmt(info.endsAt)}`; }
+  else if (info.state === 'active') { title = `atlas ${PLAN_LABEL[info.plan] || ''}`; sub = info.expiresAt ? `Se renueva o vence el ${fmt(info.expiresAt)}` : 'Acceso para siempre ✓'; }
+  const showRedeem = info.state !== 'active' || info.plan !== 'lifetime';
+  return field('Tu plan', `
+    <div class="account plan">
+      <span class="account-avatar">${icon(info.state === 'active' ? 'crown' : 'sparkles')}</span>
+      <span class="account-body"><b>${title}</b><small>${sub}</small></span>
+    </div>
+    ${showRedeem ? `<button class="pill ghost" data-action="activate" style="margin-top:10px;width:100%">${icon('sparkles')} Canjear código de activación</button>` : ''}`);
+}
+
 function passwordSheet() {
   return `
     <h2 id="sheet-title">Contraseña</h2>
@@ -269,6 +297,7 @@ function settingsSheet() {
   return `
     <h2 id="sheet-title">Ajustes</h2>
     ${field('Tu nombre', `<div class="field"><input id="f-profile-name" class="input" maxlength="30" value="${esc(state.profile?.name || '')}" placeholder="Tu nombre"><button class="pill small" data-action="save-name">Guardar</button></div>`)}
+    ${planBlock()}
     ${accountBlock()}
     ${field('Apariencia', `<div class="seg full">
       <button class="seg-btn${state.theme === 'dark' ? ' is-on' : ''}" data-action="set-theme" data-v="dark">${icon('moon')} Oscuro</button>

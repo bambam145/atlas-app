@@ -6,7 +6,7 @@ import { tasksOn, byTaskTime } from '../tasks.js';
 import { progress } from '../xp.js';
 import { pageHead, label, habitRow, taskRow, quickAdd, emptyState } from '../ui.js';
 import { MOODS } from './diario.js';
-import { cloud, cloudEnabled } from '../cloud.js';
+import { cloud, cloudEnabled, licenseInfo } from '../cloud.js';
 
 export function greeting(allDone, hasItems) {
   const h = new Date().getHours();
@@ -61,6 +61,7 @@ export function renderHoy(ctx) {
     ${pageHead({ eyebrow: longDate(), title: greeting(allDone, hasItems), sub, right: themeBtn })}
     ${hasItems ? `<div class="progress${allDone ? ' is-full' : ''}" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>` : ''}
     ${cloudBanner()}
+    ${trialBanner()}
     ${quickAdd()}
     ${overdue.length ? `<div class="group">${label('Atrasadas', overdue.length)}
       ${overdue.map((x) => taskRow(x, { showDate: true })).join('')}
@@ -87,6 +88,20 @@ function cloudBanner() {
       <span class="banner-body"><b>Protege tu progreso</b><small>Crea tu cuenta gratis y sincroniza celular y computadora.</small></span>
       <button class="pill small" data-action="login">Crear cuenta</button>
       <button class="icon-btn sm" data-action="cloud-banner-off" aria-label="Ocultar aviso">${icon('x')}</button>
+    </div>`;
+}
+
+// Aviso de prueba gratis: días restantes + activar.
+function trialBanner() {
+  const info = licenseInfo();
+  if (info.state !== 'trial') return '';
+  const urgent = info.daysLeft <= 2;
+  return `
+    <div class="banner trial${urgent ? ' urgent' : ''}">
+      <span class="banner-icon">${icon('sparkles')}</span>
+      <span class="banner-body"><b>Prueba gratis · ${info.daysLeft === 1 ? 'te queda 1 día' : `te quedan ${info.daysLeft} días`}</b>
+        <small>${urgent ? 'Activa atlas para no perder tu racha.' : 'Disfruta atlas completo. Actívalo cuando quieras.'}</small></span>
+      <button class="pill small" data-action="activate">Activar</button>
     </div>`;
 }
 

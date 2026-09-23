@@ -4,4 +4,8 @@
 // La "anon key" es pública por diseño: la seguridad la dan las reglas (RLS) de supabase/schema.sql.
 
 export const SUPABASE_URL = 'https://wdpcxfiukqtryebtlpwv.supabase.co';
-export const SUPABASE_ANON_KEY = 'sb_publishable_pglDEItfk4C6Lvt63tA_kw_ynsCZKQG';
+// Venta: enlace de pago (Hotmart, Mercado Pago, WhatsApp…) y correo de soporte. Vacíos = se ocultan.
+export const BUY_URL = '';
+export const SUPPORT_EMAIL = '';
+
+export const SUPABASE_ANON_KEY ='sb_publishable_pglDEItfk4C6Lvt63tA_kw_ynsCZKQG';

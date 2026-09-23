@@ -139,6 +139,59 @@ export async function signOut() {
   setStatus('signedout');
 }
 
+/* ---------- Licencia (prueba, activa, vencida, suspendida) ---------- */
+
+const LICENSE_KEY = 'atlas:license';
+let license; // undefined = aún no se sabe; null = sin licencia
+try { license = JSON.parse(localStorage.getItem(LICENSE_KEY)) ?? undefined; } catch { license = undefined; }
+
+export async function fetchLicense() {
+  if (!user) return;
+  const c = await client();
+  const { data, error } = await c.from('licenses').select('status, plan, trial_ends_at, expires_at').eq('user_id', user.id).maybeSingle();
+  if (error) throw error;
+  license = data ? { ...data, uid: user.id } : null;
+  try { localStorage.setItem(LICENSE_KEY, JSON.stringify(license)); } catch { /* ignorar */ }
+  setStatus(status);
+}
+
+// Estado calculado de la licencia de la sesión actual.
+export function licenseInfo() {
+  if (!cloudEnabled) return { ok: true, state: 'local' };
+  if (license === undefined || (license && user && license.uid !== user.id)) return { ok: true, state: 'loading' };
+  if (!license) return { ok: false, state: 'none' };
+  const now = Date.now();
+  const days = (iso) => Math.max(0, Math.ceil((Date.parse(iso) - now) / 86400000));
+  if (license.status === 'suspended') return { ok: false, state: 'suspended' };
+  if (license.status === 'trial') {
+    const ok = Date.parse(license.trial_ends_at) > now;
+    return { ok, state: ok ? 'trial' : 'trial-ended', daysLeft: days(license.trial_ends_at), endsAt: license.trial_ends_at };
+  }
+  const ok = !license.expires_at || Date.parse(license.expires_at) > now;
+  return { ok, state: ok ? 'active' : 'expired', plan: license.plan, expiresAt: license.expires_at, daysLeft: license.expires_at ? days(license.expires_at) : null };
+}
+
+// "atlas 7k3f 9qx2" → "ATLAS-7K3F-9QX2"
+export function normalizeCode(raw) {
+  let s = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (s.startsWith('ATLAS')) s = s.slice(5);
+  s = s.slice(0, 8);
+  return s.length === 8 ? `ATLAS-${s.slice(0, 4)}-${s.slice(4)}` : '';
+}
+
+export async function redeemCode(raw) {
+  const code = normalizeCode(raw);
+  if (!code) throw new Error('format');
+  const c = await client();
+  const { data, error } = await c.rpc('redeem_code', { p_code: code });
+  if (error) throw new Error(/used_code/.test(error.message) ? 'used' : /invalid_code/.test(error.message) ? 'invalid' : error.message);
+  await fetchLicense();
+  if (readMeta().dirty) push().catch(onError);
+  return data;
+}
+
+export const PLAN_LABEL = { lifetime: 'De por vida', monthly: 'Mensual', yearly: 'Anual' };
+
 /* ---------- Correo + contraseña ---------- */
 
 const redirect = () => location.origin + location.pathname;
@@ -210,6 +263,7 @@ export async function pull() {
   lastPull = Date.now();
   setStatus('syncing');
   const c = await client();
+  await fetchLicense();
   const { data: row, error } = await c.from('atlas_data').select('data, updated_at').eq('user_id', user.id).maybeSingle();
   if (error) throw error;
 
@@ -251,7 +305,11 @@ export async function push() {
     .upsert({ user_id: user.id, data: payload(), updated_at: new Date().toISOString() })
     .select('updated_at')
     .single();
-  if (error) throw error;
+  if (error) {
+    // Sin licencia vigente la base de datos rechaza guardar: actualizar el estado de la licencia.
+    if (error.code === '42501' || /row-level security/i.test(error.message)) { await fetchLicense(); setStatus('synced'); return; }
+    throw error;
+  }
   writeMeta({ userId: user.id, remoteAt: Date.parse(row.updated_at), dirty: false });
   lastSyncAt = Date.now();
   setStatus('synced');
