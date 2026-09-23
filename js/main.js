@@ -20,6 +20,7 @@ import { renderMapa, mountMapa, toggleKind, zoomMapa } from './views/mapa.js';
 import { cloud, cloudEnabled, initCloud, onCloudChange, sendCode, verifyCode, signOut, pull, statusLabel,
   signInPassword, signUp, resetPassword, updatePassword, resendConfirmation, authError } from './cloud.js';
 import { auth, resetAuth, renderAuth, renderSplash, mountAuthFx, passStrength, STRENGTH_LABEL } from './views/auth.js';
+import { ob, obSteps, renderOnboarding, MOMENTS } from './views/onboarding.js';
 
 const VIEWS = {
   hoy: renderHoy, tareas: renderTareas, planner: renderPlanner, habitos: renderHabitos,
@@ -48,10 +49,14 @@ let pop = null;
 
 // Cuenta obligatoria: sin sesión se muestra la pantalla de entrada.
 function gate() {
-  if (!cloudEnabled) return null;
-  if (cloud.status === 'loading') return 'splash';
-  if (cloud.recovery) return 'newpass';
-  if (!cloud.user) return 'auth';
+  if (cloudEnabled) {
+    if (cloud.status === 'loading') return 'splash';
+    if (cloud.recovery) return 'newpass';
+    if (!cloud.user) return 'auth';
+    // Primera sincronización en este dispositivo: esperar los datos de la nube antes de decidir.
+    if (cloud.status === 'syncing' && !state.profile) return 'splash';
+  }
+  if (!state.profile?.onboarded) return 'onboarding';
   return null;
 }
 
@@ -65,6 +70,12 @@ function render() {
   if (g) {
     if (sheet) closeSheet();
     if (g === 'newpass' && auth.mode !== 'newpass') resetAuth('newpass');
+    if (g === 'onboarding') {
+      if (!ob.name && cloud.user?.user_metadata?.name) ob.name = cloud.user.user_metadata.name;
+      app.innerHTML = renderOnboarding();
+      lastView = null;
+      return;
+    }
     app.innerHTML = g === 'splash' ? renderSplash() : renderAuth();
     // Animaciones de entrada solo al aparecer la pantalla (no al cambiar de pestaña).
     if (g !== 'splash' && !authShownAt) authShownAt = Date.now();
@@ -268,8 +279,26 @@ const actions = {
     catch (e) { Object.assign(sheet, { busy: false, error: authError(e) }); renderSheet(); }
   },
 
+  // Bienvenida
+  'ob-next': () => obNext(),
+  'ob-back': () => { ob.step = Math.max(0, ob.step - 1); ob.error = ''; render(); },
+  'ob-pick': (el) => {
+    const i = +el.dataset.i;
+    ob.picks = ob.picks.includes(i) ? ob.picks.filter((x) => x !== i) : [...ob.picks, i];
+    ob.error = ''; render();
+  },
+  'ob-moment': (el) => { ob.moment = el.dataset.v; render(); },
+  'ob-finish': () => finishOnboarding(),
+  'save-name': () => {
+    const v = (document.getElementById('f-profile-name')?.value || '').trim();
+    if (!v) { toast('Escribe tu nombre'); return; }
+    state.profile = { ...(state.profile || {}), name: v, onboarded: true };
+    save(); render(); toast('✓ Nombre guardado');
+  },
+
   // Pantalla de entrada
   'auth-mode': (el) => { resetAuth(el.dataset.v); render(); setTimeout(() => document.getElementById('a-email')?.focus(), 30); },
+  'auth-other': () => { Object.assign(auth, { useOther: true, email: '', error: '' }); render(); document.getElementById('a-email')?.focus(); },
   'auth-eye': () => { auth.showPass = !auth.showPass; render(); document.getElementById('a-pass')?.focus(); },
   'auth-resend': async () => {
     Object.assign(auth, { busy: true, error: '' }); render();
@@ -415,6 +444,37 @@ const actions = {
   'new-note': () => { setDiaryDate(null); go('diario'); setTimeout(() => document.querySelector('[data-journal]')?.focus(), 350); },
 };
 
+/* ---------- Bienvenida ---------- */
+
+function obNext() {
+  const steps = obSteps();
+  const key = steps[ob.step];
+  if (key === 'name') {
+    ob.name = ob.name.trim();
+    if (!ob.name) { ob.error = 'Escribe tu nombre para continuar'; render(); document.getElementById('ob-name')?.focus(); return; }
+  }
+  if (key === 'habits' && !ob.picks.length) { ob.error = 'Elige al menos un hábito (luego puedes crear los tuyos)'; render(); return; }
+  ob.error = '';
+  if (ob.step >= steps.length - 1) { finishOnboarding(); return; }
+  ob.step++;
+  render();
+}
+
+function finishOnboarding() {
+  const time = (MOMENTS.find(([id]) => id === ob.moment) || [])[3] || '';
+  for (const i of ob.picks) {
+    const [emoji, name] = HABIT_SUGGESTIONS[i];
+    if (!state.habits.some((h) => h.name === name)) {
+      state.habits.push({ id: uid(), emoji, name, days: [...ALL_DAYS], time, createdAt: keyOf(today()) });
+    }
+  }
+  state.profile = { name: ob.name.trim(), onboarded: true };
+  save();
+  view = 'hoy';
+  render();
+  toast(`🚀 ¡Listo, ${state.profile.name}! Tu sistema está armado`);
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const markLoginPending = () => { try { localStorage.setItem('atlas-login-pending', '1'); } catch { /* ignorar */ } };
 
@@ -424,6 +484,17 @@ async function submitAuth() {
   const fail = (msg) => { auth.error = msg; render(); };
   if (['login', 'signup', 'forgot', 'link'].includes(mode) && !EMAIL_RE.test(email)) return fail('Escribe un correo válido.');
   if (mode === 'login' && !auth.password) return fail('Escribe tu contraseña.');
+  if (mode === 'sent-link' || mode === 'sent-confirm') {
+    const code = (auth.code || '').replace(/\D/g, '');
+    if (code.length !== 6) return fail('El código tiene 6 dígitos.');
+    Object.assign(auth, { busy: true, error: '' });
+    render();
+    try { markLoginPending(); await verifyCode(auth.email, code); auth.code = ''; }
+    catch { auth.error = 'Código incorrecto o vencido. Revisa el correo o pide otro.'; }
+    auth.busy = false;
+    render();
+    return;
+  }
   if ((mode === 'signup' || mode === 'newpass') && auth.password.length < 8) return fail('La contraseña debe tener al menos 8 caracteres.');
 
   Object.assign(auth, { email, busy: true, error: '' });
@@ -485,8 +556,17 @@ document.addEventListener('click', (e) => {
   if (fn) { e.preventDefault(); fn(el, e); }
 });
 
+// Aviso de mayúsculas activadas en los campos de contraseña.
+const capsCheck = (e) => {
+  if (!e.target.matches?.('#a-pass') || typeof e.getModifierState !== 'function') return;
+  const hint = e.target.closest('.auth-field')?.querySelector('.caps-hint');
+  if (hint) hint.hidden = !e.getModifierState('CapsLock');
+};
+document.addEventListener('keyup', capsCheck);
+
 // Accesibilidad: Enter / Espacio en elementos con role="button".
 document.addEventListener('keydown', (e) => {
+  capsCheck(e);
   if (sheet && e.key === 'Escape') { closeSheet(); return; }
   const t = e.target;
   if ((e.key === 'Enter' || e.key === ' ') && t.matches('[role="button"][data-action]')) { e.preventDefault(); t.click(); return; }
@@ -510,6 +590,7 @@ document.addEventListener('keydown', (e) => {
 let journalTimer;
 document.addEventListener('input', (e) => {
   const t = e.target;
+  if (t.dataset.ob) { ob[t.dataset.ob] = t.value; if (ob.error) { ob.error = ''; t.parentElement.querySelector('.form-error')?.remove(); } return; }
   if (t.dataset.auth) {
     auth[t.dataset.auth] = t.value;
     if (auth.error) { auth.error = ''; t.closest('.auth-card')?.querySelector('.form-error')?.remove(); }
@@ -554,6 +635,7 @@ async function importBackup(input) {
 
 document.addEventListener('submit', (e) => {
   if (e.target.closest('[data-form="auth"]')) { e.preventDefault(); submitAuth(); return; }
+  if (e.target.closest('[data-form="ob"]')) { e.preventDefault(); obNext(); return; }
   const form = e.target.closest('[data-form="quick-task"]');
   if (!form) return;
   e.preventDefault();
@@ -640,6 +722,8 @@ onCloudChange(() => {
   // Recién inició sesión (por enlace o por código): cerrar la espera y avisar.
   const uid = cloud.user?.id || null;
   if (uid && uid !== userWas) {
+    try { localStorage.setItem('atlas-last-email', cloud.user.email); } catch { /* ignorar */ }
+    auth.useOther = false;
     if (sheet?.type === 'login') closeSheet();
     let pending = false;
     try { pending = !!localStorage.getItem('atlas-login-pending'); localStorage.removeItem('atlas-login-pending'); } catch { /* ignorar */ }

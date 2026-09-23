@@ -5,6 +5,7 @@ import { esc } from '../util.js';
 // Estado del formulario (vive solo mientras se muestra la pantalla).
 export const auth = {
   mode: 'login', // login | signup | forgot | link | sent-link | sent-confirm | sent-reset | newpass
+  useOther: false, // "Cambiar" en "Continuar como…"
   email: '',
   password: '',
   showPass: false,
@@ -115,7 +116,9 @@ export function renderAuth() {
           ? `¿Ya tienes cuenta? <button class="inline-link" data-action="auth-mode" data-v="login">Entrar</button>`
           : `¿Nuevo en atlas? <button class="inline-link" data-action="auth-mode" data-v="signup">Crear cuenta</button>`}</div>
         <div class="auth-card" aria-live="polite">${form()}</div>
-        <div class="auth-bottom">${icon('shield')} Tus datos están protegidos y solo tú puedes verlos</div>
+        <div class="auth-bottom">${icon('shield')} Tus datos están protegidos y solo tú puedes verlos
+          <span class="sep">·</span><a href="terminos.html" target="_blank" rel="noopener">Términos</a>
+          <span class="sep">·</span><a href="privacidad.html" target="_blank" rel="noopener">Privacidad</a></div>
       </section>
     </div>`;
 }
@@ -131,6 +134,7 @@ const passField = (label, auto) => `
       <input class="input" id="a-pass" type="${auth.showPass ? 'text' : 'password'}" data-auth="password" autocomplete="${auto}" placeholder="Mínimo 8 caracteres" value="${esc(auth.password)}">
       <button type="button" class="icon-btn sm pass-eye" data-action="auth-eye" aria-label="${auth.showPass ? 'Ocultar' : 'Mostrar'} contraseña">${icon(auth.showPass ? 'eyeOff' : 'eye')}</button>
     </span>
+    <span class="caps-hint" hidden>${icon('info')} Mayúsculas activadas</span>
   </label>`;
 export const meter = () => {
   const s = passStrength(auth.password);
@@ -149,7 +153,7 @@ function form() {
           ${errorHtml()}
           ${submit('Crear cuenta', 'Creando…')}
         </form>
-        <p class="auth-legal">Al crear tu cuenta aceptas guardar tus datos de forma segura en la nube de atlas.</p>`;
+        <p class="auth-legal">Al crear tu cuenta aceptas los <a href="terminos.html" target="_blank" rel="noopener">Términos</a> y la <a href="privacidad.html" target="_blank" rel="noopener">Política de Privacidad</a>.</p>`;
 
     case 'forgot':
       return `
@@ -183,6 +187,13 @@ function form() {
           <h2 class="auth-h">${what[0]}</h2>
           <p class="auth-p">Enviamos un correo de <b>Supabase Auth</b> a <b>${esc(auth.email)}</b>. ${what[1]}</p>
           <p class="hint waiting">${icon('repeat')} Esperando… esta pantalla avanza sola. Revisa también spam.</p>
+          ${auth.mode !== 'sent-reset' ? `
+          <form class="auth-form code-form" data-form="auth" novalidate>
+            <label class="auth-field"><span>¿Te llegó un código? Escríbelo</span>
+              <input class="input code-input" id="a-code" data-auth="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" value="${esc(auth.code || '')}">
+            </label>
+            ${submit('Entrar con el código', 'Verificando…')}
+          </form>` : ''}
           ${errorHtml()}
           ${auth.mode === 'sent-confirm' ? `<button class="pill ghost" data-action="auth-resend" ${auth.busy ? 'disabled' : ''}>${icon('send')} Reenviar correo</button>` : ''}
           <button class="text-btn" data-action="auth-mode" data-v="login">${icon('left')} Volver a entrar</button>
@@ -198,18 +209,32 @@ function form() {
           ${submit('Guardar y entrar', 'Guardando…')}
         </form>`;
 
-    default:
+    default: {
+      const last = lastEmail();
+      const remembered = last && !auth.useOther;
+      if (remembered && !auth.email) auth.email = last;
       return `
         ${tabs()}
         <form class="auth-form" data-form="auth" novalidate>
-          ${emailField()}${passField('Contraseña', 'current-password')}
+          ${remembered ? `
+            <div class="acct-chip">
+              <span class="account-avatar">${esc(last[0].toUpperCase())}</span>
+              <span class="acct-chip-body"><small>Continuar como</small><b>${esc(last)}</b></span>
+              <button type="button" class="text-btn" data-action="auth-other">Cambiar</button>
+            </div>` : emailField()}
+          ${passField('Contraseña', 'current-password')}
           <button type="button" class="text-btn forgot" data-action="auth-mode" data-v="forgot">¿Olvidaste tu contraseña?</button>
           ${errorHtml()}
           ${submit('Entrar', 'Entrando…')}
         </form>
         <div class="auth-or"><span>o</span></div>
         <button class="pill ghost" data-action="auth-mode" data-v="link">${icon('send')} Entrar con un enlace al correo</button>`;
+    }
   }
+}
+
+export function lastEmail() {
+  try { return localStorage.getItem('atlas-last-email') || ''; } catch { return ''; }
 }
 
 function tabs() {

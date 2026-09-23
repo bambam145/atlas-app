@@ -10,10 +10,11 @@ import { cloud, cloudEnabled } from '../cloud.js';
 
 export function greeting(allDone, hasItems) {
   const h = new Date().getHours();
-  const hello = h < 5 ? 'Buenas noches,' : h < 12 ? 'Buenos días,' : h < 19 ? 'Buenas tardes,' : 'Buenas noches,';
-  if (!hasItems) return `${hello} <span>hoy es día libre.</span>`;
-  if (allDone) return 'Diste lo mejor, <span>mañana será aún más.</span>';
-  return `${hello} <span>un paso a la vez.</span>`;
+  const hello = h < 5 ? 'Buenas noches' : h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+  const n = state.profile?.name ? `, ${esc(state.profile.name)}` : '';
+  if (!hasItems) return `${hello}${n}. <span>Hoy es día libre.</span>`;
+  if (allDone) return `Diste lo mejor${n}. <span>Mañana será aún más.</span>`;
+  return `${hello}${n}. <span>Un paso a la vez.</span>`;
 }
 
 export function renderHoy(ctx) {

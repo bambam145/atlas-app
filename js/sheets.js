@@ -263,6 +263,7 @@ function settingsSheet() {
   const counts = `${state.habits.length} hábitos · ${state.tasks.length} tareas · ${state.goals.length} metas · ${Object.keys(state.journal).length} notas`;
   return `
     <h2 id="sheet-title">Ajustes</h2>
+    ${field('Tu nombre', `<div class="field"><input id="f-profile-name" class="input" maxlength="30" value="${esc(state.profile?.name || '')}" placeholder="Tu nombre"><button class="pill small" data-action="save-name">Guardar</button></div>`)}
     ${accountBlock()}
     ${field('Apariencia', `<div class="seg full">
       <button class="seg-btn${state.theme === 'dark' ? ' is-on' : ''}" data-action="set-theme" data-v="dark">${icon('moon')} Oscuro</button>
@@ -276,7 +277,8 @@ function settingsSheet() {
       </div>
       <input type="file" id="f-import" accept="application/json,.json" data-import hidden>`)}
     ${field('Categorías de tareas', `<div class="chips">${state.categories.map((c) => `<span class="chip">${esc(c)}<button class="chip-x" data-action="del-cat" data-v="${esc(c)}" aria-label="Eliminar ${esc(c)}">${icon('x')}</button></span>`).join('')}</div>`)}
-    ${field('Zona de peligro', `<button class="link-danger left" data-action="wipe-data">${icon('trash')} Borrar todos mis datos</button>`)}`;
+    ${field('Zona de peligro', `<button class="link-danger left" data-action="wipe-data">${icon('trash')} Borrar todos mis datos</button>`)}
+    <p class="hint legal-links"><a href="terminos.html" target="_blank" rel="noopener">Términos y Condiciones</a> · <a href="privacidad.html" target="_blank" rel="noopener">Política de Privacidad</a></p>`;
 }
 
 function moreSheet() {

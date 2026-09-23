@@ -13,6 +13,7 @@ function empty() {
     goals: [],
     journal: {},
     categories: [...DEFAULT_CATEGORIES],
+    profile: null, // { name, onboarded }
     seenBadges: null, // null = primera carga: no anunciar logros ya ganados
     lastLevel: null,
     theme: 'dark',
