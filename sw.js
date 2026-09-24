@@ -1,11 +1,11 @@
 // Service worker: la app abre sin internet. Red primero, caché como respaldo.
-const CACHE = 'atlas-v18';
+const CACHE = 'atlas-v19';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
   './js/main.js', './js/store.js', './js/config.js', './js/cloud.js', './js/util.js', './js/icons.js', './js/ui.js', './js/sheets.js',
   './js/habits.js', './js/tasks.js', './js/goals.js', './js/xp.js',
   './js/views/hoy.js', './js/views/tareas.js', './js/views/planner.js', './js/views/habitos.js',
-  './js/views/metas.js', './js/views/diario.js', './js/views/stats.js', './js/views/logros.js', './js/views/mapa.js', './js/views/auth.js', './js/views/onboarding.js', './js/views/paywall.js', './css/legal.css', './terminos.html', './privacidad.html',
+  './js/views/metas.js', './js/views/diario.js', './js/views/stats.js', './js/views/logros.js', './js/views/mapa.js', './js/views/auth.js', './js/views/onboarding.js', './js/views/paywall.js', './js/share.js', './js/pixel.js', './js/push.js', './css/legal.css', './terminos.html', './privacidad.html',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
@@ -36,4 +36,24 @@ self.addEventListener('fetch', (e) => {
       })
       .catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match('./index.html')))
   );
+});
+
+// Recordatorios: mostrar el aviso que envía el servidor
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'atlas', {
+    body: d.body || '', tag: d.tag || 'atlas', renotify: true,
+    icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', data: { url: d.url || './' },
+  }));
+});
+
+// Tocar el aviso abre (o enfoca) atlas
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    const w = list.find((c) => c.url.startsWith(self.registration.scope));
+    return w ? w.focus() : self.clients.openWindow(url);
+  }));
 });

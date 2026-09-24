@@ -9,6 +9,8 @@ import { fmtAmount } from './views/metas.js';
 import { levelCard } from './views/hoy.js';
 import { cloud, cloudEnabled, statusLabel, licenseInfo, PLAN_LABEL } from './cloud.js';
 import { BUY_URL } from './config.js';
+import { APP_URL } from './share.js';
+import { pushStatus, reminders } from './push.js';
 
 export let sheet = null;
 
@@ -31,7 +33,7 @@ export function renderSheet() {
   const enter = sheet.fresh ? ' enter' : '';
   sheet.fresh = false;
   document.body.classList.add('has-sheet');
-  const body = { habit: habitSheet, task: taskSheet, goal: goalSheet, 'goal-add': goalAddSheet, new: newSheet, more: moreSheet, settings: settingsSheet, login: loginSheet, password: passwordSheet, activate: activateSheet }[sheet.type]();
+  const body = { habit: habitSheet, task: taskSheet, goal: goalSheet, 'goal-add': goalAddSheet, new: newSheet, more: moreSheet, settings: settingsSheet, login: loginSheet, password: passwordSheet, activate: activateSheet, share: shareSheet, invite: inviteSheet }[sheet.type]();
   root.innerHTML = `
     <div class="backdrop${enter}" data-action="close-sheet"></div>
     <div class="sheet${enter} sheet-${sheet.type}" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
@@ -58,14 +60,29 @@ function habitSheet() {
       <button class="emoji-btn" data-action="emoji-toggle" aria-label="Elegir emoji" aria-expanded="${sheet.emojiOpen}">${d.emoji}</button>
       <input id="f-name" class="input" data-bind="name" placeholder="Ej. Tomar agua" maxlength="40" value="${esc(d.name)}" enterkeyhint="done">
     </div>${emojiPicker(d.emoji)}`)}
-    ${field('¿Qué días?', `<div class="days">${WEEK_ORDER.map((i) => `<button class="day${d.days.includes(i) ? ' is-on' : ''}" data-action="habit-day" data-d="${i}" aria-pressed="${d.days.includes(i)}" aria-label="${DAY_SHORT[i]}">${DAY_LETTER[i]}</button>`).join('')}</div>
-      <p class="hint">${d.days.length ? daysLabel(d.days) : 'Elige al menos un día'}</p>`)}
+    ${field('Frecuencia', `<div class="seg full">
+        <button class="seg-btn${d.freq !== 'weekly' ? ' is-on' : ''}" data-action="habit-freq" data-v="days">Días fijos</button>
+        <button class="seg-btn${d.freq === 'weekly' ? ' is-on' : ''}" data-action="habit-freq" data-v="weekly">Veces por semana</button>
+      </div>
+      ${d.freq === 'weekly'
+        ? `<div class="stepper-row"><span>Quiero hacerlo</span>
+            <div class="stepper"><button data-action="habit-perweek" data-v="-1" aria-label="Menos">${icon('minus')}</button><b>${d.perWeek}</b><button data-action="habit-perweek" data-v="1" aria-label="Más">${icon('plus')}</button></div>
+            <span>${d.perWeek === 1 ? 'vez' : 'veces'} por semana</span></div>
+           <p class="hint">Cualquier día que puedas. Ideal para gym, correr o limpiar.</p>`
+        : `<div class="days" style="margin-top:10px">${WEEK_ORDER.map((i) => `<button class="day${d.days.includes(i) ? ' is-on' : ''}" data-action="habit-day" data-d="${i}" aria-pressed="${d.days.includes(i)}" aria-label="${DAY_SHORT[i]}">${DAY_LETTER[i]}</button>`).join('')}</div>
+           <p class="hint">${d.days.length ? daysLabel(d.days) : 'Elige al menos un día'}</p>`}`)}
+    ${field('¿Cuántas veces al día?', `<div class="stepper-row">
+        <div class="stepper"><button data-action="habit-target" data-v="-1" aria-label="Menos">${icon('minus')}</button><b>${d.target}</b><button data-action="habit-target" data-v="1" aria-label="Más">${icon('plus')}</button></div>
+        ${d.target > 1 ? `<input class="input unit-input" data-bind="unit" maxlength="16" placeholder="vasos, páginas…" value="${esc(d.unit || '')}">` : '<span class="hint" style="margin:0">Una vez (marcar ✓)</span>'}
+      </div>
+      ${d.target > 1 ? `<p class="hint">Se marca con un contador: 1/${d.target}, 2/${d.target}… Ideal para agua, vitaminas o series.</p>` : ''}`)}
     ${field('¿En qué momento?', `<div class="moment-opts">${MOMENTS.map(([id, e, t, h]) => `
       <button class="ob-opt${momentOfTime(d.time) === id ? ' is-on' : ''}" data-action="habit-moment" data-v="${id}" aria-pressed="${momentOfTime(d.time) === id}">
         <span>${e}</span><small>${t}</small>${h ? `<small class="opt-h">${h}</small>` : ''}
       </button>`).join('')}</div>
       <p class="hint">O elige una hora exacta:</p>
-      <input class="input" type="time" data-bind="time" value="${esc(d.time)}">`)}
+      <input class="input" type="time" data-bind="time" value="${esc(d.time)}">
+      ${d.time && d.freq !== 'weekly' && pushStatus() !== 'nocloud' ? `<button class="toggle-row" data-action="habit-remind" aria-pressed="${d.remind}"><span>${icon('bell')} Avisarme a esta hora</span><span class="switch${d.remind ? ' is-on' : ''}"><i></i></span></button>` : ''}`)}
     <div class="sheet-actions">
       <button class="pill" data-action="save-habit">${sheet.mode === 'edit' ? 'Guardar cambios' : 'Crear hábito'}</button>
       ${sheet.mode === 'edit' ? `<button class="link-danger" data-action="delete-habit">${icon('trash')} Eliminar hábito</button>` : ''}
@@ -77,7 +94,9 @@ export function openHabit(id) {
   openSheet('habit', {
     mode: h ? 'edit' : 'add',
     id: h?.id,
-    draft: h ? { emoji: h.emoji, name: h.name, days: [...h.days], time: h.time || '' } : { emoji: '💧', name: '', days: [...ALL_DAYS], time: '' },
+    draft: h
+      ? { emoji: h.emoji, name: h.name, days: [...h.days], time: h.time || '', freq: h.freq || 'days', perWeek: h.perWeek || 3, target: h.target || 1, unit: h.unit || '', remind: h.remind !== false }
+      : { emoji: '💧', name: '', days: [...ALL_DAYS], time: '', freq: 'days', perWeek: 3, target: 1, unit: '', remind: true },
   });
 }
 
@@ -237,6 +256,45 @@ function loginSheet() {
     </div>`;
 }
 
+function inviteSheet() {
+  const r = sheet.ref;
+  const link = r ? `${APP_URL}?ref=${r.code}` : '';
+  return `
+    <h2 id="sheet-title">Invita y gana. <span>Crezcan juntos.</span></h2>
+    <div class="invite-perks">
+      <div><span class="invite-num">+14</span><p><b>Tu amigo</b> recibe 14 días de prueba gratis (el doble).</p></div>
+      <div><span class="invite-num">+7</span><p><b>Tú</b> ganas 7 días extra por cada amigo que se registre (hasta 10).</p></div>
+    </div>
+    ${r ? `
+      ${field('Tu enlace', `<div class="invite-link"><span>${esc(link)}</span><button class="icon-btn sm" data-action="invite-copy" aria-label="Copiar enlace">${icon('copy')}</button></div>
+        <p class="hint">Tu código: <b>${esc(r.code)}</b> · ${r.invited === 1 ? '1 amigo se unió' : `${r.invited} amigos se unieron`}${r.rewarded ? ` · ganaste ${r.rewarded * 7} días` : ''}</p>`)}
+      <div class="sheet-actions">
+        <a class="pill" href="https://wa.me/?text=${encodeURIComponent(inviteText(link))}" target="_blank" rel="noopener">${icon('send')} Invitar por WhatsApp</a>
+        <div class="stack">
+          <button class="pill ghost" data-action="invite-share">${icon('share')} Compartir</button>
+          <button class="pill ghost" data-action="invite-copy">${icon('copy')} Copiar enlace</button>
+        </div>
+      </div>`
+    : sheet.error ? `<p class="form-error">${icon('info')} ${esc(sheet.error)}</p>` : '<div class="share-preview"><span class="auth-spin"></span></div>'}`;
+}
+
+export const inviteText = (link) => `Estoy usando atlas para mis hábitos, tareas y metas 🔥 Únete con mi enlace y tienes 14 días gratis: ${link}`;
+
+function shareSheet() {
+  const canNative = !!(navigator.canShare && navigator.share);
+  return `
+    <h2 id="sheet-title">Comparte tu racha. <span>Inspira a otros.</span></h2>
+    <p class="summary">Súbela a tus historias de Instagram o envíala por WhatsApp.</p>
+    <div class="share-preview">${sheet.url ? `<img src="${sheet.url}" alt="Imagen de tu racha">` : '<span class="auth-spin"></span>'}</div>
+    <div class="sheet-actions">
+      ${canNative ? `<button class="pill" data-action="share-native" ${sheet.url ? '' : 'disabled'}>${icon('share')} Compartir</button>` : ''}
+      <div class="stack">
+        <button class="pill ghost" data-action="share-download" ${sheet.url ? '' : 'disabled'}>${icon('download')} Descargar</button>
+        <button class="pill ghost" data-action="share-copy">${icon('copy')} Copiar texto</button>
+      </div>
+    </div>`;
+}
+
 function activateSheet() {
   return `
     <h2 id="sheet-title">Activa atlas. <span>Sin límites.</span></h2>
@@ -292,12 +350,37 @@ function accountBlock() {
     <button class="link-danger left logout-link" data-action="logout">${icon('logout')} Cerrar sesión</button>`);
 }
 
+function remindersBlock() {
+  const st = pushStatus();
+  if (st === 'nocloud') return '';
+  const r = reminders();
+  const tog = (on, action, label) => `<button class="toggle-row" data-action="${action}" aria-pressed="${on}"><span>${label}</span><span class="switch${on ? ' is-on' : ''}"><i></i></span></button>`;
+  let body;
+  if (st === 'install') body = `<p class="hint">${icon('info')} En iPhone primero agrega atlas a tu pantalla de inicio: toca <b>Compartir</b> → <b>Agregar a inicio</b>, ábrela desde ahí y vuelve aquí.</p>`;
+  else if (st === 'unsupported') body = `<p class="hint">${icon('info')} Este navegador no permite avisos. Prueba con Chrome, o instala atlas en tu celular.</p>`;
+  else if (st === 'denied') body = `<p class="hint">${icon('info')} Bloqueaste las notificaciones. Actívalas en los permisos del navegador para este sitio y vuelve aquí.</p>`;
+  else if (st === 'off') body = `<p class="hint">Te avisamos a la hora de cada hábito y en la noche si te falta algo.</p>
+      <button class="pill" data-action="push-on" style="width:100%">${icon('bell')} Activar recordatorios</button>`;
+  else body = `<div class="toggle-list">
+        ${tog(r.habits, 'rem-habits', 'A la hora de cada hábito')}
+        ${tog(r.summary, 'rem-summary', 'Resumen de la noche')}
+        ${r.summary ? `<label class="toggle-row"><span>Hora del resumen</span><input class="input time-mini" type="time" data-rem-time value="${esc(r.summaryTime)}"></label>` : ''}
+      </div>
+      <div class="stack">
+        <button class="pill ghost" data-action="push-test">${icon('bell')} Probar aviso</button>
+        <button class="pill ghost" data-action="push-off">Desactivar en este dispositivo</button>
+      </div>`;
+  return field('Recordatorios', body, st === 'on' ? 'activos' : '');
+}
+
 function settingsSheet() {
   const counts = `${state.habits.length} hábitos · ${state.tasks.length} tareas · ${state.goals.length} metas · ${Object.keys(state.journal).length} notas`;
   return `
     <h2 id="sheet-title">Ajustes</h2>
     ${field('Tu nombre', `<div class="field"><input id="f-profile-name" class="input" maxlength="30" value="${esc(state.profile?.name || '')}" placeholder="Tu nombre"><button class="pill small" data-action="save-name">Guardar</button></div>`)}
     ${planBlock()}
+    ${cloudEnabled && cloud.user ? `<button class="pill ghost" data-action="invite" style="margin-top:10px;width:100%">${icon('gift')} Invita y gana 7 días por amigo</button>` : ''}
+    ${remindersBlock()}
     ${accountBlock()}
     ${field('Apariencia', `<div class="seg full">
       <button class="seg-btn${state.theme === 'dark' ? ' is-on' : ''}" data-action="set-theme" data-v="dark">${icon('moon')} Oscuro</button>
@@ -328,6 +411,7 @@ function moreSheet() {
       ${item('mapa', 'network', 'Mapa')}
       ${item('logros', 'trophy', 'Logros')}
     </div>
+    ${cloudEnabled ? `<button class="more-item row invite-row" data-action="invite">${icon('gift')}<span>Invita y gana · 7 días extra por amigo</span></button>` : ''}
     <div class="more-grid two">
       <button class="more-item row" data-action="settings">${icon('settings')}<span>Ajustes y respaldo</span></button>
       <button class="more-item row" data-action="theme">${icon(state.theme === 'dark' ? 'sun' : 'moon')}<span>${state.theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span></button>

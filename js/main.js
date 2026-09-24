@@ -2,12 +2,13 @@
 import { state, save, setRenderer, replaceState, isValidBackup } from './store.js';
 import { icon, logo } from './icons.js';
 import { today, keyOf, fromKey, addDays, fromMinutes, uid, fmtDay, fmtTime, ALL_DAYS } from './util.js';
-import { findHabit, isScheduled, statusOf, setStatus, streakOf, skipsThisWeek, SKIPS_PER_WEEK, HABIT_SUGGESTIONS, momentTime } from './habits.js';
+import { findHabit, isScheduled, statusOf, setStatus, streakOf, skipsThisWeek, SKIPS_PER_WEEK, HABIT_SUGGESTIONS, momentTime,
+  isCounter, isWeekly, targetOf, countOf, setCount, weekCount, perWeekOf, habitFromSuggestion } from './habits.js';
 import { findTask, newTask, setTaskStatus, parseTask, QUADRANTS } from './tasks.js';
 import { findGoal, GOAL_SUGGESTIONS } from './goals.js';
 import { checkRewards } from './xp.js';
 import { toast, toastQueue } from './ui.js';
-import { sheet, openSheet, closeSheet, renderSheet, openHabit, openTask, openGoal } from './sheets.js';
+import { sheet, openSheet, closeSheet, renderSheet, openHabit, openTask, openGoal, inviteText } from './sheets.js';
 import { renderHoy, levelCard, cloudBannerVisible } from './views/hoy.js';
 import { renderTareas } from './views/tareas.js';
 import { renderPlanner, plannerMode, plannerAnchor, START_H, HOUR_PX } from './views/planner.js';
@@ -19,10 +20,16 @@ import { renderLogros } from './views/logros.js';
 import { renderMapa, mountMapa, toggleKind, zoomMapa } from './views/mapa.js';
 import { cloud, cloudEnabled, initCloud, onCloudChange, sendCode, verifyCode, signOut, pull, statusLabel,
   signInPassword, signUp, resetPassword, updatePassword, resendConfirmation, authError,
-  licenseInfo, redeemCode, fetchLicense, PLAN_LABEL } from './cloud.js';
+  licenseInfo, redeemCode, fetchLicense, PLAN_LABEL, captureRef, myReferral } from './cloud.js';
 import { auth, resetAuth, renderAuth, renderSplash, mountAuthFx, passStrength, STRENGTH_LABEL } from './views/auth.js';
 import { ob, obSteps, obMoment, renderOnboarding } from './views/onboarding.js';
 import { pw, renderPaywall } from './views/paywall.js';
+import { renderStreakImage, shareNative, shareText, APP_URL } from './share.js';
+import { initPixel, trackRegistration, trackPurchase } from './pixel.js';
+import { enablePush, disablePush, forgetPush, refreshPush, reminders } from './push.js';
+
+// Enlace para compartir: incluye tu código de invitado si ya lo tienes.
+const shareLink = () => (state.refCode ? `${APP_URL}?ref=${state.refCode}` : APP_URL);
 
 const VIEWS = {
   hoy: renderHoy, tareas: renderTareas, planner: renderPlanner, habitos: renderHabitos,
@@ -151,13 +158,36 @@ function toggleHabit(id) {
   if (!h) return;
   if (!isScheduled(h, t)) { toast('Hoy no toca este hábito'); return; }
   const wasDone = statusOf(h, t) === 'done';
-  setStatus(h, t, wasDone ? null : 'done');
+  if (isCounter(h)) {
+    // Contador: cada toque suma uno; al llegar a la meta, se cumple.
+    if (wasDone) { toast(`${h.emoji} Ya completaste ${targetOf(h)} ${h.unit || 'veces'} hoy · usa − para corregir`); return; }
+    const n = countOf(h, t) + 1;
+    setCount(h, t, n);
+    pop = id;
+    if (navigator.vibrate) navigator.vibrate(12);
+    if (n < targetOf(h)) { toast(`${h.emoji} ${n}/${targetOf(h)} ${h.unit || ''}`.trim()); render(); return; }
+  } else {
+    setStatus(h, t, wasDone ? null : 'done');
+  }
   if (!wasDone) {
     pop = id;
     if (navigator.vibrate) navigator.vibrate(12);
-    const pending = state.habits.some((x) => isScheduled(x, t) && !statusOf(x, t));
-    toast(pending ? `${h.emoji} ${streakOf(h)} 🔥 · +10 XP` : '🔥 ¡Día perfecto! +20 XP extra');
+    const pending = state.habits.some((x) => !isWeekly(x) && isScheduled(x, t) && !statusOf(x, t));
+    if (isWeekly(h)) {
+      const wc = weekCount(h, t);
+      toast(wc >= perWeekOf(h) ? `🎉 ¡Meta semanal cumplida! ${h.emoji} ${wc}/${perWeekOf(h)}` : `${h.emoji} ${wc}/${perWeekOf(h)} esta semana · +10 XP`);
+    } else {
+      toast(pending ? `${h.emoji} ${streakOf(h)} 🔥 · +10 XP` : '🔥 ¡Día perfecto! +20 XP extra');
+    }
   }
+  render();
+}
+
+function decHabit(id) {
+  const h = findHabit(id);
+  const t = today();
+  if (!h) return;
+  setCount(h, t, countOf(h, t) - 1);
   render();
 }
 
@@ -174,12 +204,17 @@ function saveHabit() {
   const d = sheet.draft;
   const name = d.name.trim();
   if (!name) { toast('Escribe un nombre para tu hábito'); document.getElementById('f-name')?.focus(); return; }
-  if (!d.days.length) { toast('Elige al menos un día'); return; }
+  if (d.freq !== 'weekly' && !d.days.length) { toast('Elige al menos un día'); return; }
+  const fields = {
+    emoji: d.emoji, name, days: d.freq === 'weekly' ? [...ALL_DAYS] : [...d.days].sort(), time: d.time,
+    freq: d.freq, perWeek: d.perWeek, target: d.target, unit: d.target > 1 ? (d.unit || '').trim() : '',
+    remind: d.remind !== false,
+  };
   if (sheet.mode === 'add') {
-    state.habits.push({ id: uid(), emoji: d.emoji, name, days: [...d.days].sort(), time: d.time, createdAt: keyOf(today()) });
+    state.habits.push({ id: uid(), createdAt: keyOf(today()), ...fields });
     toast(`${d.emoji} Hábito creado`);
   } else {
-    Object.assign(findHabit(sheet.id), { emoji: d.emoji, name, days: [...d.days].sort(), time: d.time });
+    Object.assign(findHabit(sheet.id), fields);
     toast('Cambios guardados');
   }
   save(); closeSheet(); render();
@@ -276,7 +311,7 @@ const actions = {
   'login-back': () => { Object.assign(sheet, { step: 'email', error: '', busy: false }); renderSheet(); },
   logout: async () => {
     if (!confirm('¿Cerrar sesión? Tus datos quedan guardados en la nube.')) return;
-    await signOut(); resetAuth('login'); view = 'hoy'; authShownAt = 0; render(); toast('Sesión cerrada');
+    await forgetPush(); await signOut(); resetAuth('login'); view = 'hoy'; authShownAt = 0; render(); toast('Sesión cerrada');
   },
   'change-pass': () => openSheet('password', { draft: { password: '' } }),
   'save-pass': async () => {
@@ -287,6 +322,50 @@ const actions = {
     catch (e) { Object.assign(sheet, { busy: false, error: authError(e) }); renderSheet(); }
   },
 
+  // Invita y gana
+  invite: async () => {
+    openSheet('invite', { ref: null, error: '' });
+    try {
+      const r = await myReferral();
+      if (state.refCode !== r.code) { state.refCode = r.code; save(); }
+      if (sheet?.type === 'invite') { sheet.ref = r; renderSheet(); }
+    } catch {
+      if (sheet?.type === 'invite') { sheet.error = 'No se pudo cargar tu enlace. Revisa tu conexión.'; renderSheet(); }
+    }
+  },
+  'invite-copy': async () => {
+    try { await navigator.clipboard.writeText(`${APP_URL}?ref=${sheet.ref.code}`); toast('✓ Enlace copiado'); } catch { toast('No se pudo copiar'); }
+  },
+  'invite-share': async () => {
+    const link = `${APP_URL}?ref=${sheet.ref.code}`;
+    if (navigator.share) { try { await navigator.share({ title: 'atlas', text: inviteText(link), url: link }); } catch { /* cancelado */ } }
+    else { try { await navigator.clipboard.writeText(inviteText(link)); toast('✓ Mensaje copiado · pégalo donde quieras'); } catch { /* ignorar */ } }
+  },
+
+  // Compartir racha
+  'share-habit': async (el) => {
+    const h = findHabit(el.dataset.id);
+    if (!h) return;
+    openSheet('share', { id: h.id, url: '', blob: null });
+    const blob = await renderStreakImage(h);
+    if (sheet?.type !== 'share') return;
+    Object.assign(sheet, { blob, url: URL.createObjectURL(blob) });
+    renderSheet();
+  },
+  'share-native': async () => {
+    const h = findHabit(sheet.id);
+    if (sheet.blob && !(await shareNative(sheet.blob, h, shareLink()))) toast('Tu dispositivo no permite compartir directo: usa Descargar');
+  },
+  'share-download': () => {
+    const a = document.createElement('a');
+    a.href = sheet.url; a.download = `atlas-racha-${keyOf(today())}.png`; a.click();
+    toast('✓ Imagen descargada · súbela a tus historias');
+  },
+  'share-copy': async () => {
+    const h = findHabit(sheet.id);
+    try { await navigator.clipboard.writeText(shareText(h, shareLink())); toast('✓ Texto copiado'); } catch { toast('No se pudo copiar'); }
+  },
+
   // Licencia y códigos
   activate: () => openSheet('activate', { draft: { code: '' } }),
   'redeem-sheet': async () => {
@@ -294,7 +373,7 @@ const actions = {
     const msg = await tryRedeem(sheet.draft.code);
     if (msg) { Object.assign(sheet, { busy: false, error: msg }); renderSheet(); } else closeSheet();
   },
-  'pw-logout': async () => { await signOut(); resetAuth('login'); authShownAt = 0; view = 'hoy'; render(); },
+  'pw-logout': async () => { await forgetPush(); await signOut(); resetAuth('login'); authShownAt = 0; view = 'hoy'; render(); },
 
   // Bienvenida
   'ob-next': () => obNext(),
@@ -326,7 +405,22 @@ const actions = {
   'cloud-banner-off': () => { state.ui.cloudBannerOff = true; save(); render(); },
 
   // Ajustes y respaldo
-  settings: () => openSheet('settings'),
+  settings: () => { openSheet('settings'); refreshPush().then(() => { if (sheet?.type === 'settings') renderSheet(); }); },
+  // Recordatorios
+  'push-on': async () => {
+    try { await enablePush(); toast('🔔 Recordatorios activados'); }
+    catch (e) { toast(e.message === 'denied' ? 'Bloqueaste las notificaciones en este navegador' : e.message === 'dismissed' ? 'Necesitamos tu permiso para avisarte' : 'No se pudo activar. Revisa tu conexión'); }
+    renderSheet();
+  },
+  'push-off': async () => { await disablePush(); renderSheet(); toast('Recordatorios desactivados en este dispositivo'); },
+  'push-test': async () => {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification('⏰ Así te avisaremos', { body: 'A la hora de tus hábitos y en la noche si te falta algo.', icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'atlas-test' });
+    } catch { toast('No se pudo mostrar el aviso'); }
+  },
+  'rem-habits': () => { state.reminders = { ...reminders(), habits: !reminders().habits }; save(); renderSheet(); },
+  'rem-summary': () => { state.reminders = { ...reminders(), summary: !reminders().summary }; save(); renderSheet(); },
   'set-theme': (el) => { state.theme = el.dataset.v; save(); render(); },
   'export-data': () => {
     const blob = new Blob([JSON.stringify({ app: 'atlas', version: 1, exportedAt: new Date().toISOString(), ...state }, null, 2)], { type: 'application/json' });
@@ -364,13 +458,23 @@ const actions = {
     setStatus(h, t, 'skip'); toast('🌙 Descanso registrado. Tu racha está a salvo'); render();
   },
   'quick-habit': (el) => {
-    const [emoji, name, m] = HABIT_SUGGESTIONS[+el.dataset.i];
-    state.habits.push({ id: uid(), emoji, name, days: [...ALL_DAYS], time: momentTime(m), createdAt: keyOf(today()) });
-    save(); toast(`${emoji} ${name} agregado`); render();
+    const i = +el.dataset.i;
+    const h = habitFromSuggestion(i, momentTime(HABIT_SUGGESTIONS[i][2]), uid);
+    state.habits.push(h);
+    save(); toast(`${h.emoji} ${h.name} agregado`); render();
   },
   'new-habit': () => openHabit(),
   'edit-habit': (el) => openHabit(el.dataset.id),
-  'habit-suggest': (el) => { const [emoji, name, m] = HABIT_SUGGESTIONS[+el.dataset.i]; Object.assign(sheet.draft, { emoji, name, time: momentTime(m) }); renderSheet(); },
+  'habit-suggest': (el) => {
+    const [emoji, name, m, extra = {}] = HABIT_SUGGESTIONS[+el.dataset.i];
+    Object.assign(sheet.draft, { emoji, name, time: momentTime(m), freq: 'days', perWeek: 3, target: 1, unit: '', ...extra });
+    renderSheet();
+  },
+  'habit-remind': () => { sheet.draft.remind = !sheet.draft.remind; renderSheet(); },
+  'habit-freq': (el) => { sheet.draft.freq = el.dataset.v; renderSheet(); },
+  'habit-perweek': (el) => { sheet.draft.perWeek = Math.min(6, Math.max(1, sheet.draft.perWeek + +el.dataset.v)); renderSheet(); },
+  'habit-target': (el) => { sheet.draft.target = Math.min(30, Math.max(1, sheet.draft.target + +el.dataset.v)); renderSheet(); },
+  'habit-dec': (el) => decHabit(el.dataset.id),
   'habit-moment': (el) => { sheet.draft.time = momentTime(el.dataset.v); renderSheet(); },
   'habit-day': (el) => {
     const d = +el.dataset.d;
@@ -468,6 +572,7 @@ const actions = {
 async function tryRedeem(raw) {
   try {
     const r = await redeemCode(raw);
+    trackPurchase(r?.plan);
     toast(`🎉 ¡atlas activado! Plan: ${PLAN_LABEL[r?.plan] || 'activo'}`);
     render();
     return '';
@@ -505,13 +610,13 @@ function obNext() {
 
 function finishOnboarding() {
   for (const i of ob.picks) {
-    const [emoji, name] = HABIT_SUGGESTIONS[i];
-    if (!state.habits.some((h) => h.name === name)) {
-      state.habits.push({ id: uid(), emoji, name, days: [...ALL_DAYS], time: momentTime(obMoment(i)), createdAt: keyOf(today()) });
+    if (!state.habits.some((h) => h.name === HABIT_SUGGESTIONS[i][1])) {
+      state.habits.push(habitFromSuggestion(i, momentTime(obMoment(i)), uid));
     }
   }
   state.profile = { name: ob.name.trim(), onboarded: true };
   save();
+  trackRegistration();
   view = 'hoy';
   render();
   toast(`🚀 ¡Listo, ${state.profile.name}! Tu sistema está armado`);
@@ -658,6 +763,7 @@ document.addEventListener('input', (e) => {
 document.addEventListener('change', (e) => {
   if (sheet && e.target.dataset.bind === 'date') renderSheet();
   if (e.target.matches('[data-import]')) importBackup(e.target);
+  if (e.target.matches('[data-rem-time]') && /^\d{2}:\d{2}$/.test(e.target.value)) { state.reminders = { ...reminders(), summaryTime: e.target.value }; save(); toast(`✓ Resumen a las ${e.target.value}`); }
 });
 
 async function importBackup(input) {
@@ -754,6 +860,8 @@ document.addEventListener('scroll', () => tip.classList.remove('is-on'), { passi
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !gate()) render(); });
 
 document.getElementById('side-brand').innerHTML = `${logo(30)}<span>atlas</span>`;
+captureRef();
+initPixel();
 render();
 
 // Nube: al cambiar el estado, actualizar el indicador y la hoja de ajustes abierta.
@@ -769,6 +877,7 @@ onCloudChange(() => {
   if (uid && uid !== userWas) {
     try { localStorage.setItem('atlas-last-email', cloud.user.email); } catch { /* ignorar */ }
     auth.useOther = false;
+    refreshPush().then(() => { if (sheet?.type === 'settings') renderSheet(); });
     if (sheet?.type === 'login') closeSheet();
     let pending = false;
     try { pending = !!localStorage.getItem('atlas-login-pending'); localStorage.removeItem('atlas-login-pending'); } catch { /* ignorar */ }

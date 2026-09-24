@@ -2,6 +2,7 @@
 import { icon, logo } from '../icons.js';
 import { esc } from '../util.js';
 import { EMAIL_CODES } from '../config.js';
+import { pendingRef } from '../cloud.js';
 
 // Estado del formulario (vive solo mientras se muestra la pantalla).
 export const auth = {
@@ -248,5 +249,6 @@ function tabs() {
     <div class="auth-mobile-logo">${logo(40)}</div>
     <h2 class="auth-h">${auth.mode === 'signup' ? 'Crea tu cuenta' : 'Bienvenido de vuelta'}</h2>
     <p class="auth-p">${auth.mode === 'signup' ? 'Empieza gratis en segundos.' : 'Entra para ver tu día.'}</p>
+    ${pendingRef() ? `<div class="invited">${icon('gift')} <span><b>¡Te invitaron!</b> Crea tu cuenta y tienes <b>14 días gratis</b>.</span></div>` : ''}
     <div class="seg full auth-tabs">${t('login', 'Entrar')}${t('signup', 'Crear cuenta')}</div>`;
 }

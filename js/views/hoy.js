@@ -1,7 +1,7 @@
 import { state } from '../store.js';
 import { icon } from '../icons.js';
 import { today, keyOf, addDays, mondayOf, longDate, esc, DAY_LETTER, DAY_SHORT, WEEK_ORDER, plural } from '../util.js';
-import { isScheduled, statusOf, streakOf, byTime, dayStats, HABIT_SUGGESTIONS } from '../habits.js';
+import { isScheduled, statusOf, streakOf, byTime, dayStats, HABIT_SUGGESTIONS, isWeekly, weekMet } from '../habits.js';
 import { tasksOn, byTaskTime } from '../tasks.js';
 import { progress } from '../xp.js';
 import { pageHead, label, habitRow, taskRow, quickAdd, emptyState } from '../ui.js';
@@ -31,7 +31,8 @@ export function renderHoy(ctx) {
       quickAdd();
   }
 
-  const habits = state.habits.filter((h) => isScheduled(h, t)).sort(byTime);
+  const habits = state.habits.filter((h) => !isWeekly(h) && isScheduled(h, t)).sort(byTime);
+  const weekly = state.habits.filter((h) => isWeekly(h) && isScheduled(h, t)).sort(byTime);
   const tasks = tasksOn(tk).sort(byTaskTime);
   const overdue = state.tasks.filter((x) => x.status !== 'done' && x.date && x.date < tk).sort(byTaskTime);
 
@@ -46,8 +47,8 @@ export function renderHoy(ctx) {
 
   const counted = habits.filter((h) => statusOf(h, t) !== 'skip').length + tasks.length;
   const doneCount = habits.filter((h) => statusOf(h, t) === 'done').length + tasks.filter((x) => x.status === 'done').length;
-  const hasItems = habits.length + tasks.length > 0;
-  const allDone = hasItems && pending.length === 0;
+  const hasItems = habits.length + tasks.length + weekly.length > 0;
+  const allDone = habits.length + tasks.length > 0 && pending.length === 0;
   const pct = counted ? Math.round((doneCount / counted) * 100) : 0;
 
   const row = (x) => (x.kind === 'h' ? habitRow(x.item, t, { pop: ctx.pop === x.item.id }) : taskRow(x.item, { pop: ctx.pop === x.item.id }));
@@ -67,6 +68,7 @@ export function renderHoy(ctx) {
       ${overdue.map((x) => taskRow(x, { showDate: true })).join('')}
       <button class="text-btn" data-action="overdue-to-today">${icon('arrowRight')} Mover todas a hoy</button></div>` : ''}
     ${pending.length ? `<div class="group">${label('Agenda', pending.length)}${pending.map(row).join('')}</div>` : ''}
+    ${weekly.length ? `<div class="group">${label('Esta semana', `${weekly.filter((h) => weekMet(h, t)).length}/${weekly.length} metas`)}${weekly.map((h) => habitRow(h, t, { pop: ctx.pop === h.id })).join('')}</div>` : ''}
     ${finished.length ? `<div class="group">${label('Completadas', finished.length)}${finished.map(row).join('')}</div>` : ''}
     ${free.length ? `<div class="group">${label('Hoy libre')}<div class="free-list">${free.map((h) => `<span class="free-chip">${h.emoji} ${esc(h.name)}</span>`).join('')}</div></div>` : ''}
     ${ideasHtml()}`;

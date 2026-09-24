@@ -14,6 +14,8 @@ function empty() {
     journal: {},
     categories: [...DEFAULT_CATEGORIES],
     profile: null, // { name, onboarded }
+    refCode: null, // tu código de invitado (Invita y gana)
+    reminders: null, // { habits, summary, summaryTime } — null = valores por defecto
     seenBadges: null, // null = primera carga: no anunciar logros ya ganados
     lastLevel: null,
     theme: 'dark',

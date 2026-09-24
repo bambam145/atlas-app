@@ -1,7 +1,7 @@
 // Niveles (XP) y logros. Todo se calcula a partir del historial: no hay nada que "hacer trampa".
 import { state, save } from './store.js';
 import { fromKey, today, addDays, keyOf } from './util.js';
-import { bestOf, isPerfectDay, earliestHabitDate, rateOf } from './habits.js';
+import { bestOf, isPerfectDay, earliestHabitDate, rateOf, isDoneValue } from './habits.js';
 import { currentOf } from './goals.js';
 
 export const XP = { habit: 10, task: 5, perfect: 20, goal: 100, journal: 5 };
@@ -16,7 +16,8 @@ export const xpForLevel = (L) => 50 * L * (L - 1);
 
 function counts() {
   let habitsDone = 0;
-  for (const day of Object.values(state.log)) for (const v of Object.values(day)) if (v === 'done') habitsDone++;
+  const byId = new Map(state.habits.map((h) => [h.id, h]));
+  for (const day of Object.values(state.log)) for (const [id, v] of Object.entries(day)) { const h = byId.get(id); if (h ? isDoneValue(h, v) : v === 'done') habitsDone++; }
   const tasksDone = state.tasks.filter((t) => t.status === 'done').length;
   const goalsDone = state.goals.filter((g) => currentOf(g) >= g.target).length;
   const journalDays = Object.values(state.journal).filter((j) => (j.text && j.text.trim()) || j.mood).length;

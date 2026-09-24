@@ -1,5 +1,6 @@
 // Metas: progreso manual + automático desde un hábito vinculado, y estado vs. plazo.
 import { state } from './store.js';
+import { isDoneValue } from './habits.js';
 import { keyOf, fromKey, today, daysBetween } from './util.js';
 
 export const GOAL_SUGGESTIONS = [
@@ -16,7 +17,9 @@ export const findGoal = (id) => state.goals.find((g) => g.id === id);
 export function linkedCount(g) {
   if (!g.habitId) return 0;
   let n = 0;
-  for (const [k, day] of Object.entries(state.log)) if (k >= g.createdAt && day[g.habitId] === 'done') n++;
+  const h = state.habits.find((x) => x.id === g.habitId);
+  if (!h) return 0;
+  for (const [k, day] of Object.entries(state.log)) if (k >= g.createdAt && isDoneValue(h, day[g.habitId])) n++;
   return n;
 }
 

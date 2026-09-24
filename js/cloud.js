@@ -114,7 +114,7 @@ export async function sendCode(email) {
   const c = await client();
   const { error } = await c.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: true, emailRedirectTo: location.origin + location.pathname },
+    options: { shouldCreateUser: true, emailRedirectTo: location.origin + location.pathname, data: refData() },
   });
   if (error) throw error;
 }
@@ -137,6 +137,43 @@ export async function signOut() {
   applyingRemote = false;
   writeMeta({ userId: null, remoteAt: 0, dirty: false });
   setStatus('signedout');
+}
+
+/* ---------- Recordatorios (suscripciones push de este dispositivo) ---------- */
+
+export async function savePushSub(sub, tz) {
+  if (!user || !sub?.endpoint || !sub.keys) return;
+  const c = await client();
+  const { error } = await c.from('push_subscriptions')
+    .upsert({ endpoint: sub.endpoint, user_id: user.id, p256dh: sub.keys.p256dh, auth: sub.keys.auth, tz });
+  if (error) throw error;
+}
+export async function deletePushSub(endpoint) {
+  if (!user) return;
+  const c = await client();
+  await c.from('push_subscriptions').delete().eq('endpoint', endpoint);
+}
+
+/* ---------- Invita y gana ---------- */
+
+const REF_KEY = 'atlas-ref';
+// Guarda el código de invitación que venga en el enlace (?ref=ABC123) y limpia la URL.
+export function captureRef() {
+  try {
+    const url = new URL(location.href);
+    const ref = (url.searchParams.get('ref') || '').trim().toUpperCase();
+    if (/^[A-Z0-9]{4,12}$/.test(ref)) localStorage.setItem(REF_KEY, ref);
+    if (url.searchParams.has('ref')) { url.searchParams.delete('ref'); history.replaceState(null, '', url.pathname + url.search + url.hash); }
+  } catch { /* ignorar */ }
+}
+export const pendingRef = () => { try { return localStorage.getItem(REF_KEY) || ''; } catch { return ''; } };
+const refData = () => (pendingRef() ? { ref: pendingRef() } : {});
+
+export async function myReferral() {
+  const c = await client();
+  const { data, error } = await c.rpc('my_referral');
+  if (error) throw error;
+  return data; // { code, invited, rewarded }
 }
 
 /* ---------- Licencia (prueba, activa, vencida, suspendida) ---------- */
@@ -205,7 +242,7 @@ export async function signInPassword(email, password) {
 // Devuelve true si hace falta confirmar el correo antes de entrar.
 export async function signUp(email, password) {
   const c = await client();
-  const { data, error } = await c.auth.signUp({ email, password, options: { emailRedirectTo: redirect() } });
+  const { data, error } = await c.auth.signUp({ email, password, options: { emailRedirectTo: redirect(), data: refData() } });
   if (error) throw error;
   // Correo ya registrado: Supabase responde "ok" sin enviar nada y sin identidades.
   if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {

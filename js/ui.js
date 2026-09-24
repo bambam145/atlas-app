@@ -1,7 +1,7 @@
 // Piezas de interfaz reutilizables (devuelven HTML).
 import { icon } from './icons.js';
 import { esc, fmtTime, fmtDay, today } from './util.js';
-import { statusOf, streakOf, streakText } from './habits.js';
+import { statusOf, streakOf, streakText, isCounter, isWeekly, countOf, targetOf, weekCount, perWeekOf } from './habits.js';
 import { taskMeta, CATEGORY_ICON, isOverdue } from './tasks.js';
 
 export function pageHead({ eyebrow, title, sub = '', right = '' }) {
@@ -20,24 +20,37 @@ export const checkbox = (on, cls = '') => `<span class="check ${cls}${on ? ' is-
 
 export const pillTag = (text, tone = '') => `<span class="tag${tone ? ` tag-${tone}` : ''}">${text}</span>`;
 
+// Anillo de progreso para hábitos con contador (3/8).
+export function counterRing(count, target) {
+  const pct = Math.round((count / target) * 100);
+  return `<span class="ring${count >= target ? ' is-on' : ''}" style="--p:${pct}" aria-hidden="true">${count >= target ? icon('check') : `<b>${count}</b>`}</span>`;
+}
+
 // Fila de hábito para Hoy / Agenda.
 export function habitRow(h, d, { pop } = {}) {
   const s = statusOf(h, d);
+  const counter = isCounter(h);
+  const weekly = isWeekly(h);
+  const count = counter ? countOf(h, d) : 0;
   const cls = s === 'done' ? ' is-done' : s === 'skip' ? ' is-skip' : '';
   const n = streakOf(h);
-  const meta = s === 'skip'
-    ? `<span>${icon('moon')} Descanso · racha a salvo</span>`
-    : `<span>${icon('repeat')} Hábito</span><span class="${n ? 'fire' : ''}">${icon('flame')} ${streakText(n)}</span>`;
+  let info;
+  if (s === 'skip') info = `<span>${icon('moon')} Descanso · racha a salvo</span>`;
+  else if (weekly) info = `<span>${icon('repeat')} ${weekCount(h, d)} de ${perWeekOf(h)} esta semana</span>`;
+  else if (counter) info = `<span>${icon('repeat')} ${count} de ${targetOf(h)} ${esc(h.unit || 'veces')}</span>`;
+  else info = `<span>${icon('repeat')} Hábito</span>`;
+  const meta = `${info}${s === 'skip' ? '' : `<span class="${n ? 'fire' : ''}">${icon('flame')} ${streakText(n, h)}</span>`}`;
   return `
-    <div class="item${cls}${pop ? ' pop' : ''}" data-action="toggle-habit" data-id="${h.id}" role="button" tabindex="0" aria-pressed="${s === 'done'}">
+    <div class="item${cls}${pop ? ' pop' : ''}${counter ? ' is-counter' : ''}" data-action="toggle-habit" data-id="${h.id}" role="button" tabindex="0" aria-pressed="${s === 'done'}"${counter ? ` aria-label="${esc(h.name)}: ${count} de ${targetOf(h)}. Toca para sumar uno."` : ''}>
       ${timeCol(h.time)}
       <div class="item-card">
-        ${checkbox(s === 'done')}
+        ${counter ? counterRing(count, targetOf(h)) : checkbox(s === 'done')}
         <span class="item-emoji" aria-hidden="true">${h.emoji}</span>
         <span class="item-body">
           <span class="item-title">${esc(h.name)}</span>
           <span class="item-meta">${meta}</span>
         </span>
+        ${counter && count > 0 ? `<button class="icon-btn sm counter-dec" data-action="habit-dec" data-id="${h.id}" aria-label="Restar uno">${icon('minus')}</button>` : ''}
       </div>
     </div>`;
 }

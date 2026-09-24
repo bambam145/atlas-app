@@ -3,7 +3,7 @@
 import { state } from '../store.js';
 import { icon } from '../icons.js';
 import { today, keyOf, addDays, fromKey, MONTHS } from '../util.js';
-import { streakOf } from '../habits.js';
+import { streakOf, isDoneValue } from '../habits.js';
 import { currentOf } from '../goals.js';
 import { pageHead, emptyState } from '../ui.js';
 
@@ -73,7 +73,7 @@ function buildGraph() {
       link('hub:journal', `j:${k}`, 60);
       // Lo que hiciste ese día queda conectado a tu nota.
       const day = state.log[k] || {};
-      for (const [hid, s] of Object.entries(day)) if (s === 'done') link(`j:${k}`, `h:${hid}`, 90);
+      for (const [hid, s] of Object.entries(day)) { const hb = state.habits.find((x) => x.id === hid); if (hb && isDoneValue(hb, s)) link(`j:${k}`, `h:${hid}`, 90); }
       for (const x of state.tasks) if (x.doneAt === k) link(`j:${k}`, `t:${x.id}`, 70);
       // Enlaces manuales [[...]]
       for (const name of wikiLinks(e.text)) {
