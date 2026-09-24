@@ -6,7 +6,7 @@
 export const SUPABASE_URL = 'https://wdpcxfiukqtryebtlpwv.supabase.co';
 // Venta: enlace de pago (Hotmart, Mercado Pago, WhatsApp…) y correo de soporte. Vacíos = se ocultan.
 export const BUY_URL = '';
-export const SUPPORT_EMAIL = '';
+export const SUPPORT_EMAIL = 'atlasapp.soporte@gmail.com';
 // true cuando los correos de Supabase traigan el código de 6 dígitos ({{ .Token }}),
 // es decir, después de conectar un SMTP propio y pegar las plantillas de supabase/emails/.
 export const EMAIL_CODES = false;
