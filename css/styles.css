@@ -1232,6 +1232,24 @@ button.wd:active { transform: scale(0.92); }
 .grid .dot[data-action] { cursor: pointer; }
 .grid .dot[data-action]:hover { outline: 1.5px solid var(--text-3); outline-offset: 1px; }
 
+/* Dejar algo, retos y pausa */
+.kind-opts { grid-template-columns: repeat(5, 1fr); }
+.quit-count { margin: 0 0 12px; font-size: 14px; color: var(--text-2); }
+.quit-count b { font-size: 34px; font-weight: 300; letter-spacing: -0.05em; color: var(--good); margin-right: 4px; }
+.reto-tag { color: var(--text-2); }
+.reto-tag.is-done { color: var(--good); }
+.reto { margin: -2px 0 14px; padding: 10px 12px 12px; background: var(--surface-2); border-radius: 14px; }
+.reto-top { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.reto-top span { flex: 1; display: inline-flex; align-items: center; gap: 6px; }
+.reto-top .i { width: 14px; height: 14px; }
+.reto-top b { font-variant-numeric: tabular-nums; color: var(--text); }
+.reto .sum-bar { margin: 8px 0 0; }
+.reto.is-done .reto-top span { color: var(--good); }
+.retos { margin-bottom: 14px; }
+.head-btns { display: flex; gap: 8px; align-items: center; }
+.pause-emoji { font-size: 20px; line-height: 1; }
+@media (max-width: 480px) { .head-btns .lbl { display: none; } }
+
 /* Hoja: sueño */
 .time-now { display: flex; gap: 8px; align-items: center; }
 .time-now .input { flex: 1; min-width: 0; }

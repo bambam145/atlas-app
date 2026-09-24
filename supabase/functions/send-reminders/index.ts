@@ -66,7 +66,10 @@ function isDone(h: Habit, v: unknown) {
   return typeof v === 'number' && v >= target(h);
 }
 const scheduledToday = (h: Habit, day: string, wd: number) =>
-  h.freq !== 'weekly' && (h.days || []).includes(wd) && (!h.createdAt || h.createdAt <= day);
+  h.freq !== 'weekly' && kindOf(h) !== 'quit' && (h.days || []).includes(wd) && (!h.createdAt || h.createdAt <= day);
+// Vacaciones / enfermo: esos días no hay avisos ni cuentan en el resumen.
+// deno-lint-ignore no-explicit-any
+const paused = (data: any, day: string) => (data.pauses || []).some((p: { from: string; to?: string | null }) => day >= p.from && (!p.to || day <= p.to));
 
 function progressText(h: Habit, v: unknown) {
   const kind = kindOf(h);
@@ -93,7 +96,7 @@ function weekSummary(data: any, today: string): { title: string; body: string } 
   // deno-lint-ignore no-explicit-any
   const habits: Habit[] = (data.habits || []).filter((h: Habit) => h.freq !== 'weekly');
   if (!habits.length) return null;
-  const good = (h: Habit, v: unknown) => v === 'done' || (typeof v === 'number' && v >= target(h));
+  const good = (h: Habit, v: unknown) => (kindOf(h) === 'quit' ? v !== 'none' : v === 'done' || (typeof v === 'number' && v >= target(h)));
   let done = 0, total = 0;
   const bits: string[] = [];
   for (const h of habits) {
@@ -101,7 +104,7 @@ function weekSummary(data: any, today: string): { title: string; body: string } 
     const mins: number[] = [];
     for (const day of days) {
       const wd = new Date(`${day}T12:00:00Z`).getUTCDay();
-      if (!(h.days || []).includes(wd) || (h.createdAt && h.createdAt > day)) continue;
+      if (!(h.days || []).includes(wd) || (h.createdAt && h.createdAt > day) || paused(data, day)) continue;
       const v = (data.log || {})[day]?.[h.id];
       if (v === 'skip') continue;
       t++; total++;
@@ -113,7 +116,8 @@ function weekSummary(data: any, today: string): { title: string; body: string } 
     if (!t) continue;
     const kind = kindOf(h);
     const e = h.emoji || '•';
-    if (kind === 'choice') bits.push(`${e} ${n}/${t} ${((h.labels && h.labels[0]) || 'bien').toLowerCase()}`);
+    if (kind === 'quit') bits.push(`${e} ${n}/${t} días limpio`);
+    else if (kind === 'choice') bits.push(`${e} ${n}/${t} ${((h.labels && h.labels[0]) || 'bien').toLowerCase()}`);
     else if (kind === 'sleep' && mins.length) { const a = Math.round(mins.reduce((x, y) => x + y, 0) / mins.length); bits.push(`${e} ${Math.floor(a / 60)} h ${String(a % 60).padStart(2, '0')} min`); }
     else if (kind === 'counter' && /vaso/i.test(h.unit || '')) bits.push(`${e} ${liters(sum / t)} al día`);
   }
@@ -143,7 +147,7 @@ Deno.serve(async (req) => {
     const tz = subs[0]?.tz || 'America/Lima';
     const now = localNow(tz);
     const log = (data.log || {})[now.day] || {};
-    const habits: Habit[] = (data.habits || []).filter((h: Habit) => scheduledToday(h, now.day, now.wd));
+    const habits: Habit[] = paused(data, now.day) ? [] : (data.habits || []).filter((h: Habit) => scheduledToday(h, now.day, now.wd));
     const inWindow = (time?: string) => !!time && /^\d{2}:\d{2}$/.test(time) && now.min >= toMin(time) && now.min < toMin(time) + WINDOW_MIN;
 
     const msgs: { key: string; title: string; body: string; tag: string; url?: string; actions?: Action[]; act?: { url: string; token: string } }[] = [];

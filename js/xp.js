@@ -1,7 +1,7 @@
 // Niveles (XP) y logros. Todo se calcula a partir del historial: no hay nada que "hacer trampa".
 import { state, save } from './store.js';
 import { fromKey, today, addDays, keyOf } from './util.js';
-import { bestOf, isPerfectDay, earliestHabitDate, rateOf, isDoneValue } from './habits.js';
+import { bestOf, isPerfectDay, earliestHabitDate, rateOf, isDoneValue, challengeOf } from './habits.js';
 import { currentOf } from './goals.js';
 
 export const XP = { habit: 10, task: 5, perfect: 20, goal: 100, journal: 5 };
@@ -59,6 +59,8 @@ export const BADGES = [
   { id: 'j7', icon: 'feather', name: 'Escritor', desc: '7 días escribiendo tu diario', test: (c) => c.journalDays >= 7 },
   { id: 'c80', icon: 'award', name: 'Constancia', desc: '80% o más en un hábito (30 días)', test: () => state.habits.some((h) => (rateOf(h, 30) ?? 0) >= 80 && h.createdAt <= keyOf(addDays(today(), -13))) },
 ];
+
+BADGES.push({ id: 'reto', icon: 'award', name: 'Reto cumplido', desc: 'Termina un reto de 21, 30 o 66 días', test: () => state.habits.some((h) => challengeOf(h)?.complete) });
 
 export function badgeState() {
   const p = progress();

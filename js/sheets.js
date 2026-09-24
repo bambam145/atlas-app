@@ -3,7 +3,8 @@ import { state } from './store.js';
 import { icon } from './icons.js';
 import { esc, keyOf, fromKey, today, addDays, fmtDay, fmtTime, pad, DAY_LETTER, DAY_SHORT, DAY_LONG, MONTHS, WEEK_ORDER, ALL_DAYS } from './util.js';
 import { findHabit, daysLabel, HABIT_SUGGESTIONS, EMOJIS, MOMENTS, momentOfTime, kindOf, choiceLabels, CHOICE_DEFAULT, CHOICE_VALUES,
-  statusOf, timeOf, sleepMinutes, sleepGoalOf, fmtDuration, litersText, isScheduled, isChoice, isCounter, isSleep, countOf, targetOf } from './habits.js';
+  statusOf, timeOf, sleepMinutes, sleepGoalOf, fmtDuration, litersText, isScheduled, isChoice, isCounter, isSleep, isQuit, countOf, targetOf,
+  streakOf, bestOf, activePause, PAUSE_REASONS } from './habits.js';
 import { findTask, STATUS, CATEGORY_ICON } from './tasks.js';
 import { findGoal, GOAL_SUGGESTIONS, currentOf } from './goals.js';
 import { fmtAmount } from './views/metas.js';
@@ -35,7 +36,7 @@ export function renderSheet() {
   const enter = sheet.fresh ? ' enter' : '';
   sheet.fresh = false;
   document.body.classList.add('has-sheet');
-  const body = { habit: habitSheet, choice: choiceSheet, sleep: sleepSheet, day: daySheet, task: taskSheet, goal: goalSheet, 'goal-add': goalAddSheet, new: newSheet, more: moreSheet, settings: settingsSheet, login: loginSheet, password: passwordSheet, activate: activateSheet, share: shareSheet, invite: inviteSheet }[sheet.type]();
+  const body = { habit: habitSheet, choice: choiceSheet, sleep: sleepSheet, day: daySheet, pause: pauseSheet, task: taskSheet, goal: goalSheet, 'goal-add': goalAddSheet, new: newSheet, more: moreSheet, settings: settingsSheet, login: loginSheet, password: passwordSheet, activate: activateSheet, share: shareSheet, invite: inviteSheet }[sheet.type]();
   root.innerHTML = `
     <div class="backdrop${enter}" data-action="close-sheet"></div>
     <div class="sheet${enter} sheet-${sheet.type}" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
@@ -62,7 +63,7 @@ function habitSheet() {
       <button class="emoji-btn" data-action="emoji-toggle" aria-label="Elegir emoji" aria-expanded="${sheet.emojiOpen}">${d.emoji}</button>
       <input id="f-name" class="input" data-bind="name" placeholder="Ej. Tomar agua" maxlength="40" value="${esc(d.name)}" enterkeyhint="done">
     </div>${emojiPicker(d.emoji)}`)}
-    ${field('Frecuencia', `<div class="seg full">
+    ${d.kind === 'quit' ? '' : field('Frecuencia', `<div class="seg full">
         <button class="seg-btn${d.freq !== 'weekly' ? ' is-on' : ''}" data-action="habit-freq" data-v="days">Días fijos</button>
         <button class="seg-btn${d.freq === 'weekly' ? ' is-on' : ''}" data-action="habit-freq" data-v="weekly">Veces por semana</button>
       </div>
@@ -84,10 +85,14 @@ function habitSheet() {
     ${d.kind === 'choice' ? field('Opciones', `<div class="choice-edit">${CHOICE_VALUES.map((v, i) => `
       <label class="choice-edit-row"><i class="tone-dot ${TONE_CLASS[v]}"></i><input class="input" data-bind-label="${i}" maxlength="28" placeholder="${CHOICE_DEFAULT[i]}" value="${esc(d.labels[i] || '')}"></label>`).join('')}</div>
       <p class="hint">Solo la verde suma a tu racha. Las otras quedan en tu resumen.</p>`) : ''}
+    ${d.kind === 'quit' ? field('¿Desde cuándo no lo haces?', `<input class="input" type="date" data-bind="since" max="${keyOf(today())}" value="${esc(d.since || keyOf(today()))}">
+      <p class="hint">Cada día sin recaer suma a tu racha. Si recaes, lo marcas y vuelves a empezar (tu récord queda guardado).</p>`) : ''}
     ${d.kind === 'sleep' ? field('Meta de sueño', `<div class="stepper-row">
         <div class="stepper"><button data-action="habit-sleepgoal" data-v="-0.5" aria-label="Menos">${icon('minus')}</button><b>${String(d.sleepGoal).replace('.', ',')}</b><button data-action="habit-sleepgoal" data-v="0.5" aria-label="Más">${icon('plus')}</button></div>
         <span>horas por noche</span></div>`) : ''}
-    ${field('¿En qué momento?', `<div class="moment-opts">${MOMENTS.map(([id, e, t, h]) => `
+    ${field('Reto', `<div class="chips">${[[0, 'Sin reto'], [21, '21 días'], [30, '30 días'], [66, '66 días']].map(([n, t]) => `<button class="chip${(d.challenge || 0) === n ? ' is-on' : ''}" data-action="habit-challenge" data-v="${n}">${n ? '🎯 ' : ''}${t}</button>`).join('')}</div>
+      <p class="hint">${d.challenge ? `Cúmplelo ${d.challenge} días (no hace falta que sean seguidos) y ganas una medalla 🏅.` : 'Un reto le pone una meta clara a tu hábito.'}</p>`)}
+    ${d.kind === 'quit' ? '' : field('¿En qué momento?', `<div class="moment-opts">${MOMENTS.map(([id, e, t, h]) => `
       <button class="ob-opt${momentOfTime(d.time) === id ? ' is-on' : ''}" data-action="habit-moment" data-v="${id}" aria-pressed="${momentOfTime(d.time) === id}">
         <span>${e}</span><small>${t}</small>${h ? `<small class="opt-h">${h}</small>` : ''}
       </button>`).join('')}</div>
@@ -100,12 +105,13 @@ function habitSheet() {
     </div>`;
 }
 
-const KINDS = [['check', '✓', 'Marcar'], ['counter', '🔢', 'Contador'], ['choice', '🍽️', 'Opciones'], ['sleep', '😴', 'Sueño']];
+const KINDS = [['check', '✓', 'Marcar'], ['counter', '🔢', 'Contador'], ['choice', '🍽️', 'Opciones'], ['sleep', '😴', 'Sueño'], ['quit', '🚫', 'Dejar']];
 const KIND_HINT = {
   check: 'Un toque y listo. Se guarda la hora en que lo marcas.',
   counter: 'Suma de a uno: agua, vitaminas, series…',
   choice: 'Eliges cómo te fue. Ej: sano, no sano o no comí.',
   sleep: 'Registras a qué hora te acostaste y te despertaste.',
+  quit: 'Para dejar algo (fumar, azúcar…): cuenta los días sin recaer.',
 };
 const TONE_CLASS = { done: 'good', meh: 'meh', none: 'none' };
 
@@ -116,8 +122,8 @@ export function openHabit(id) {
     id: h?.id,
     draft: h
       ? { emoji: h.emoji, name: h.name, days: [...h.days], time: h.time || '', freq: h.freq || 'days', perWeek: h.perWeek || 3, target: h.target || 1, unit: h.unit || '', remind: h.remind !== false,
-        kind: kindOf(h), labels: [0, 1, 2].map((i) => (h.labels || [])[i] || ''), sleepGoal: h.sleepGoal || 8 }
-      : { emoji: '💧', name: '', days: [...ALL_DAYS], time: '', freq: 'days', perWeek: 3, target: 1, unit: '', remind: true, kind: 'check', labels: ['', '', ''], sleepGoal: 8 },
+        kind: kindOf(h), labels: [0, 1, 2].map((i) => (h.labels || [])[i] || ''), sleepGoal: h.sleepGoal || 8, since: h.createdAt, challenge: h.challenge?.days || 0 }
+      : { emoji: '💧', name: '', days: [...ALL_DAYS], time: '', freq: 'days', perWeek: 3, target: 1, unit: '', remind: true, kind: 'check', labels: ['', '', ''], sleepGoal: 8, since: '', challenge: 0 },
   });
 }
 
@@ -166,6 +172,10 @@ function daySheet() {
     body = `<div class="stepper-row">
       <div class="stepper"><button data-action="day-count" data-v="-1" aria-label="Menos">${icon('minus')}</button><b>${n}</b><button data-action="day-count" data-v="1" aria-label="Más">${icon('plus')}</button></div>
       <span>de ${targetOf(h)} ${esc(h.unit || 'veces')}${/vaso/i.test(h.unit || '') && n ? ` · ${litersText(n)}` : ''}</span></div>`;
+  } else if (isQuit(h)) {
+    body = `<p class="quit-count"><b>${streakOf(h)}</b> ${streakOf(h) === 1 ? 'día' : 'días'} limpio · récord ${bestOf(h)}</p>
+      <div class="choice-opts">${opt('done', '<i class="tone-dot good"></i>', 'Limpio ese día').replace('data-v="done"', 'data-v=""')}${opt('none', '<i class="tone-dot none"></i>', 'Recaí')}</div>
+      <p class="hint">Si recaes no pasa nada: la racha vuelve a empezar y tu récord queda guardado.</p>`;
   } else if (isChoice(h)) {
     const labels = choiceLabels(h);
     body = `<div class="choice-opts">${CHOICE_VALUES.map((v, i) => opt(v, `<i class="tone-dot ${TONE_CLASS[v]}"></i>`, labels[i])).join('')}</div>`;
@@ -178,9 +188,30 @@ function daySheet() {
     ${dayNav(h, sheet.day, 'day-move')}
     ${body}
     ${at ? `<p class="hint">Registrado a las ${fmtTime(at)}.</p>` : ''}
-    ${s && !isCounter(h) ? `<div class="sheet-actions"><button class="link-danger" data-action="day-set" data-v="">${icon('x')} Quitar registro</button></div>` : ''}`;
+    ${s && !isCounter(h) && !isQuit(h) ? `<div class="sheet-actions"><button class="link-danger" data-action="day-set" data-v="">${icon('x')} Quitar registro</button></div>` : ''}`;
 }
 const cap1 = (x) => x[0].toUpperCase() + x.slice(1);
+
+/* ---------- Pausa: vacaciones / enfermo ---------- */
+
+function pauseSheet() {
+  const p = activePause();
+  if (p) {
+    const [e, name] = PAUSE_REASONS[p.reason] || PAUSE_REASONS.descanso;
+    return `
+      <h2 id="sheet-title">${e} Modo ${name.toLowerCase()}. <span>Tus rachas están a salvo.</span></h2>
+      <p class="hint">Empezó ${fmtDay(p.from).toLowerCase()}${p.to ? ` y termina ${fmtDay(p.to).toLowerCase()}` : '. Termina cuando vuelvas'}.</p>
+      <div class="sheet-actions"><button class="pill" data-action="pause-end">Volver a mis hábitos</button></div>`;
+  }
+  const d = sheet.draft;
+  return `
+    <h2 id="sheet-title">Pausa. <span>Tus rachas quedan congeladas.</span></h2>
+    ${field('¿Por qué?', `<div class="choice-opts">${Object.entries(PAUSE_REASONS).map(([id, [e, t]]) => `
+      <button class="choice-opt${d.reason === id ? ' is-on' : ''}" data-action="pause-reason" data-v="${id}"><span class="pause-emoji">${e}</span><span>${t}</span>${d.reason === id ? icon('check') : ''}</button>`).join('')}</div>`)}
+    ${field('¿Cuánto tiempo?', `<div class="chips">${[[3, '3 días'], [7, '1 semana'], [14, '2 semanas'], [0, 'Hasta que vuelva']].map(([n, t]) => `<button class="chip${d.len === n ? ' is-on' : ''}" data-action="pause-len" data-v="${n}">${t}</button>`).join('')}</div>`)}
+    <p class="hint">Mientras dure, tus hábitos no cuentan, no te llegan recordatorios y tus rachas y retos no se rompen.</p>
+    <div class="sheet-actions"><button class="pill" data-action="pause-start">Empezar pausa desde hoy</button></div>`;
+}
 
 /* ---------- Sueño ---------- */
 
@@ -560,9 +591,8 @@ function moreSheet() {
       ${item('metas', 'target', 'Metas')}
       ${item('diario', 'book', 'Diario')}
       ${item('stats', 'chart', 'Estadísticas')}
-      ${item('mapa', 'network', 'Mapa')}
-      ${item('logros', 'trophy', 'Logros')}
     </div>
+    <button class="more-item row invite-row" data-action="pause">${icon('moon')}<span>${activePause() ? 'Estás en pausa · volver' : 'Pausa: vacaciones o enfermo'}</span></button>
     ${installPlatform() !== 'installed' ? `<button class="more-item row invite-row" data-action="settings">${icon(installPlatform() === 'desktop' ? 'monitor' : 'smartphone')}<span>Instalar la app en este dispositivo</span></button>` : ''}
     ${cloudEnabled ? `<button class="more-item row invite-row" data-action="invite">${icon('gift')}<span>Invita y gana · 7 días extra por amigo</span></button>` : ''}
     <div class="more-grid two">

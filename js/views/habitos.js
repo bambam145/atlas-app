@@ -4,8 +4,9 @@ import { today, keyOf, addDays, mondayOf, esc, fmtTime, DAY_LETTER, WEEK_ORDER }
 import {
   isScheduled, statusOf, streakOf, bestOf, rateOf, skipsThisWeek, freqLabel, byTime, SKIPS_PER_WEEK,
   isCounter, isWeekly, countOf, targetOf, weekCount, perWeekOf, isChoice, isSleep, choiceLabelOf, sleepOf, sleepMinutes, fmtDuration,
+  isQuit, challengeOf, CHALLENGES, HABIT_SUGGESTIONS, activePause,
 } from '../habits.js';
-import { pageHead, emptyState } from '../ui.js';
+import { pageHead, emptyState, label } from '../ui.js';
 
 const GRID_WEEKS = 20;
 
@@ -15,7 +16,7 @@ function gridHtml(h) {
   const start = addDays(mondayOf(t), -(GRID_WEEKS - 1) * 7);
   const counter = isCounter(h);
   const weekly = isWeekly(h);
-  const toned = isChoice(h) || isSleep(h);
+  const toned = isChoice(h) || isSleep(h) || isQuit(h);
   let out = '';
   for (let i = 0; i < GRID_WEEKS * 7; i++) {
     const d = addDays(start, i);
@@ -43,6 +44,7 @@ function gridHtml(h) {
 
 const TONE = { done: 'good', meh: 'meh', none: 'none' };
 function toneTip(h, d, s) {
+  if (isQuit(h)) return s === 'none' ? 'recaída' : 'limpio';
   if (isSleep(h)) { const m = sleepMinutes(sleepOf(d)); return m === null ? 'registrado' : fmtDuration(m); }
   return choiceLabelOf(h, s);
 }
@@ -56,7 +58,7 @@ function weekHtml(h) {
     if (!isWeekly(h) && !h.days.includes(d.getDay())) c += ' off';
     else {
       const s = statusOf(h, d);
-      if ((isChoice(h) || isSleep(h)) && TONE[s]) c += ` ${TONE[s]}`;
+      if ((isChoice(h) || isSleep(h) || isQuit(h)) && TONE[s]) c += ` ${TONE[s]}`;
       else if (s === 'done') c += ' done';
       else if (s === 'skip') c += ' skip';
     }
@@ -75,12 +77,14 @@ function cardHtml(h) {
   const rate = rateOf(h, 30);
   const weekly = isWeekly(h);
   const counter = isCounter(h);
-  const canSkip = !weekly && scheduled && s !== 'done' && (s === 'skip' || skipsThisWeek(h) < SKIPS_PER_WEEK);
+  const canSkip = !weekly && !isQuit(h) && scheduled && s !== 'done' && (s === 'skip' || skipsThisWeek(h) < SKIPS_PER_WEEK);
 
   let main;
   if (!scheduled) main = `<button class="pill soft" disabled>Hoy libre</button>`;
   else if (counter && s !== 'skip') {
     main = `<button class="pill" data-action="toggle-habit" data-id="${h.id}">${icon('plus')} Sumar 1 · ${countOf(h, t)}/${targetOf(h)}</button>`;
+  } else if (isQuit(h)) {
+    main = `<button class="pill${s === 'none' ? ' soft' : ''}" data-action="toggle-habit" data-id="${h.id}">${s === 'none' ? 'Recaíste hoy' : `<i class="tone-dot good"></i> Limpio hoy`}</button>`;
   } else if (isChoice(h) && s !== 'skip') {
     main = `<button class="pill${s ? ' soft' : ''}" data-action="toggle-habit" data-id="${h.id}">${s ? `<i class="tone-dot ${TONE[s]}"></i> ${esc(choiceLabelOf(h, s))}` : `${icon('check')} Registrar hoy`}</button>`;
   } else if (isSleep(h)) {
@@ -93,7 +97,13 @@ function cardHtml(h) {
     ? `<button class="pill ghost small" data-action="skip-habit" data-id="${h.id}" ${canSkip ? '' : 'disabled'} data-tip="1 descanso por semana sin romper la racha">${icon('moon')}<span class="lbl">${s === 'skip' ? 'Quitar' : 'Descansar'}</span></button>`
     : '';
   const shareBtn = `<button class="pill ghost small" data-action="share-habit" data-id="${h.id}" aria-label="Compartir mi racha" data-tip="Compartir mi racha">${icon('share')}</button>`;
-  const unitLabel = weekly ? 'Semanas' : 'Racha';
+  const unitLabel = weekly ? 'Semanas' : isQuit(h) ? 'Días limpio' : 'Racha';
+  const ch = challengeOf(h);
+  const reto = ch ? `<div class="reto${ch.complete ? ' is-done' : ''}">
+      <div class="reto-top"><span>${ch.complete ? '🏅 Reto cumplido' : `${icon('target')} Reto de ${ch.days} días`}</span><b>${ch.done}/${ch.days}</b>
+        <button class="icon-btn sm" data-action="challenge-stop" data-id="${h.id}" aria-label="Dejar el reto">${icon('x')}</button></div>
+      <span class="sum-bar"><i class="${ch.complete ? 'good' : 'done'}" style="width:${(ch.done / ch.days) * 100}%"></i></span>
+    </div>` : '';
 
   return `
     <article class="card">
@@ -107,6 +117,7 @@ function cardHtml(h) {
         <div class="stat"><b>${bestOf(h)}</b><span>${icon('trophy')} Récord</span></div>
         <div class="stat"><b>${rate === null ? '—' : rate + '%'}</b><span>${icon('chart')} 30 días</span></div>
       </div>
+      ${reto}
       ${weekly ? `<p class="week-goal">${icon('target')} Esta semana: <b>${weekCount(h, t)} de ${perWeekOf(h)}</b>${weekCount(h, t) >= perWeekOf(h) ? ' · ¡meta cumplida! 🎉' : ''}</p>` : ''}
       ${gridHtml(h)}
       ${weekHtml(h)}
@@ -119,11 +130,20 @@ export function renderHabitos() {
     eyebrow: 'Hábitos',
     title: 'La constancia <span>se construye día a día.</span>',
     sub: state.habits.length ? `Cada punto es un día: tócalo para marcar o corregir ese día. <b>Blanco</b> = cumplido, <b>anillo</b> = descanso.${state.habits.some((h) => isChoice(h) || isSleep(h)) ? ' En comidas y sueño: <b class="tone-text good">verde</b> bien, <b class="tone-text meh">lavanda</b> a medias, <b class="tone-text none">gris</b> no lo hiciste.' : ''}` : '',
-    right: `<button class="pill small head-btn" data-action="new-habit">${icon('plus')} Nuevo hábito</button>`,
+    right: `<div class="head-btns"><button class="pill ghost small head-btn" data-action="pause" aria-label="Pausa">${icon('moon')}<span class="lbl">${activePause() ? 'En pausa' : 'Pausa'}</span></button><button class="pill small head-btn" data-action="new-habit">${icon('plus')} Nuevo hábito</button></div>`,
   });
   if (!state.habits.length) {
     return head + emptyState('Aún no tienes hábitos', 'Aquí verás tus rachas y tu calendario de constancia.',
       `<button class="pill" data-action="new-habit">${icon('plus')} Crear hábito</button>`);
   }
-  return head + `<div class="cards">${[...state.habits].sort(byTime).map(cardHtml).join('')}</div>`;
+  return head + retosHtml() + `<div class="cards">${[...state.habits].sort(byTime).map(cardHtml).join('')}</div>`;
+}
+
+// Retos listos para empezar (los que ya están en curso no se repiten).
+function retosHtml() {
+  const busy = new Set(state.habits.filter((h) => challengeOf(h) && !challengeOf(h).complete).map((h) => h.name));
+  const list = CHALLENGES.map((c, i) => ({ c, i })).filter(({ c }) => !busy.has(HABIT_SUGGESTIONS[c[3]][1]));
+  if (!list.length) return '';
+  return `<div class="group retos">${label('Empieza un reto')}<div class="chips scroll">${list.map(({ c: [e, t], i }) =>
+    `<button class="chip" data-action="challenge-start" data-i="${i}">${e} ${t}</button>`).join('')}</div></div>`;
 }

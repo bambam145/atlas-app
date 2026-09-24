@@ -5,6 +5,7 @@ import { dayStats, streakOf, bestOf, rateOf, isPerfectDay, byTime } from '../hab
 import { progress } from '../xp.js';
 import { pageHead, label, emptyState } from '../ui.js';
 import { renderSummary } from './resumen.js';
+import { levelCard } from './hoy.js';
 
 // Serie única y monocroma: la intensidad (no el color) codifica la magnitud.
 
@@ -101,6 +102,8 @@ export function renderStats() {
     </section>` : '';
 
   return head + renderSummary() + `
+    ${label('Nivel y logros')}
+    ${levelCard()}
     ${label('Todo tu historial')}
     <div class="kpis">
       ${kpi(total30 ? `${Math.round((done30 / total30) * 100)}%` : '—', 'Constancia 30 días', 'chart')}

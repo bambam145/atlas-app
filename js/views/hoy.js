@@ -1,7 +1,7 @@
 import { state } from '../store.js';
 import { icon } from '../icons.js';
-import { today, keyOf, addDays, mondayOf, longDate, esc, DAY_LETTER, DAY_SHORT, WEEK_ORDER, plural } from '../util.js';
-import { isScheduled, statusOf, streakOf, byTime, dayStats, HABIT_SUGGESTIONS, isWeekly, weekMet } from '../habits.js';
+import { today, keyOf, addDays, mondayOf, longDate, esc, fmtDay, DAY_LETTER, DAY_SHORT, WEEK_ORDER, plural } from '../util.js';
+import { isScheduled, statusOf, streakOf, byTime, dayStats, HABIT_SUGGESTIONS, isWeekly, weekMet, isQuit, activePause, PAUSE_REASONS } from '../habits.js';
 import { tasksOn, byTaskTime } from '../tasks.js';
 import { progress } from '../xp.js';
 import { pageHead, label, habitRow, taskRow, quickAdd, emptyState } from '../ui.js';
@@ -31,7 +31,8 @@ export function renderHoy(ctx) {
       quickAdd();
   }
 
-  const habits = state.habits.filter((h) => !isWeekly(h) && isScheduled(h, t)).sort(byTime);
+  const habits = state.habits.filter((h) => !isWeekly(h) && !isQuit(h) && isScheduled(h, t)).sort(byTime);
+  const quitting = state.habits.filter((h) => isQuit(h) && isScheduled(h, t));
   const weekly = state.habits.filter((h) => isWeekly(h) && isScheduled(h, t)).sort(byTime);
   const tasks = tasksOn(tk).sort(byTaskTime);
   const overdue = state.tasks.filter((x) => x.status !== 'done' && x.date && x.date < tk).sort(byTaskTime);
@@ -47,12 +48,12 @@ export function renderHoy(ctx) {
 
   const counted = habits.filter((h) => statusOf(h, t) !== 'skip').length + tasks.length;
   const doneCount = habits.filter((h) => statusOf(h, t) === 'done').length + tasks.filter((x) => x.status === 'done').length;
-  const hasItems = habits.length + tasks.length + weekly.length > 0;
+  const hasItems = habits.length + tasks.length + weekly.length + quitting.length > 0;
   const allDone = habits.length + tasks.length > 0 && pending.length === 0;
   const pct = counted ? Math.round((doneCount / counted) * 100) : 0;
 
   const row = (x) => (x.kind === 'h' ? habitRow(x.item, t, { pop: ctx.pop === x.item.id }) : taskRow(x.item, { pop: ctx.pop === x.item.id }));
-  const free = state.habits.filter((h) => !isScheduled(h, t) && tk >= h.createdAt);
+  const free = activePause() ? [] : state.habits.filter((h) => !isScheduled(h, t) && tk >= h.createdAt);
 
   const sub = hasItems
     ? `Hoy tienes <b>${plural(habits.length, 'hábito', 'hábitos')}</b> y <b>${plural(tasks.length, 'tarea', 'tareas')}</b>.`
@@ -61,6 +62,7 @@ export function renderHoy(ctx) {
   const main = `
     ${pageHead({ eyebrow: longDate(), title: greeting(allDone, hasItems), sub, right: themeBtn })}
     ${hasItems ? `<div class="progress${allDone ? ' is-full' : ''}" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>` : ''}
+    ${pauseBanner()}
     ${cloudBanner()}
     ${trialBanner()}
     ${quickAdd()}
@@ -68,12 +70,26 @@ export function renderHoy(ctx) {
       ${overdue.map((x) => taskRow(x, { showDate: true })).join('')}
       <button class="text-btn" data-action="overdue-to-today">${icon('arrowRight')} Mover todas a hoy</button></div>` : ''}
     ${pending.length ? `<div class="group">${label('Agenda', pending.length)}${pending.map(row).join('')}</div>` : ''}
+    ${quitting.length ? `<div class="group">${label('Dejando', quitting.length)}${quitting.map((h) => habitRow(h, t, { pop: ctx.pop === h.id })).join('')}</div>` : ''}
     ${weekly.length ? `<div class="group">${label('Esta semana', `${weekly.filter((h) => weekMet(h, t)).length}/${weekly.length} metas`)}${weekly.map((h) => habitRow(h, t, { pop: ctx.pop === h.id })).join('')}</div>` : ''}
     ${finished.length ? `<div class="group">${label('Completadas', finished.length)}${finished.map(row).join('')}</div>` : ''}
     ${free.length ? `<div class="group">${label('Hoy libre')}<div class="free-list">${free.map((h) => `<span class="free-chip">${h.emoji} ${esc(h.name)}</span>`).join('')}</div></div>` : ''}
     ${ideasHtml()}`;
 
   return `<div class="two-col"><section class="col-main">${main}</section><aside class="col-side">${sidePanels()}</aside></div>`;
+}
+
+// Modo vacaciones / enfermo: las rachas quedan congeladas.
+function pauseBanner() {
+  const p = activePause();
+  if (!p) return '';
+  const [e, name] = PAUSE_REASONS[p.reason] || PAUSE_REASONS.descanso;
+  return `
+    <div class="banner">
+      <span class="banner-icon pause-emoji">${e}</span>
+      <span class="banner-body"><b>Modo ${name.toLowerCase()}${p.to ? ` hasta el ${fmtDay(p.to).toLowerCase()}` : ''}</b><small>Tus rachas y retos están a salvo. Descansa.</small></span>
+      <button class="pill small" data-action="pause-end">Volver</button>
+    </div>`;
 }
 
 // Aviso para crear cuenta cuando ya hay datos que proteger.

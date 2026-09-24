@@ -4,7 +4,8 @@ import { icon, logo, wordmark } from './icons.js';
 import { today, keyOf, fromKey, addDays, fromMinutes, uid, fmtDay, fmtTime, pad, ALL_DAYS } from './util.js';
 import { findHabit, isScheduled, statusOf, setStatus, streakOf, skipsThisWeek, SKIPS_PER_WEEK, HABIT_SUGGESTIONS, momentTime,
   isCounter, isWeekly, targetOf, countOf, setCount, weekCount, perWeekOf, habitFromSuggestion,
-  isChoice, isSleep, choiceLabels, CHOICE_VALUES, setSleep, sleepMinutes, sleepGoalOf, fmtDuration, isGlasses, litersText, migrateHabits } from './habits.js';
+  isChoice, isSleep, choiceLabels, CHOICE_VALUES, setSleep, sleepMinutes, sleepGoalOf, fmtDuration, isGlasses, litersText, migrateHabits,
+  isQuit, challengeOf, CHALLENGES, activePause, PAUSE_REASONS } from './habits.js';
 import { findTask, newTask, setTaskStatus, parseTask, QUADRANTS } from './tasks.js';
 import { findGoal, GOAL_SUGGESTIONS } from './goals.js';
 import { checkRewards } from './xp.js';
@@ -126,8 +127,22 @@ function render() {
   setActive(document.querySelector('.dock [data-action="more"]'), !DOCK_MAIN.includes(view));
 
   if (sheet) renderSheet();
-  const news = checkRewards();
+  const news = [...challengeNews(), ...checkRewards()];
   if (news.length) toastQueue(news);
+}
+
+// Un reto recién cumplido se celebra una sola vez.
+function challengeNews() {
+  const out = [];
+  for (const h of state.habits) {
+    const c = challengeOf(h);
+    if (c?.complete && !h.challenge.doneAt) {
+      h.challenge.doneAt = keyOf(today());
+      out.push(`🏅 ¡Reto cumplido! ${h.emoji} ${c.days} días de ${h.name}`);
+    }
+  }
+  if (out.length) save();
+  return out;
 }
 
 function paintSyncBadge() {
@@ -166,6 +181,7 @@ function toggleHabit(id) {
   if (!isScheduled(h, t)) { toast('Hoy no toca este hábito'); return; }
   // Opciones (comidas) y sueño se registran en una hoja.
   if (isChoice(h)) { openSheet('choice', { id }); return; }
+  if (isQuit(h)) { openSheet('day', { id, day: keyOf(t) }); return; }
   if (isSleep(h)) { openSleep(h); return; }
   const wasDone = statusOf(h, t) === 'done';
   if (isCounter(h)) {
@@ -253,7 +269,12 @@ function saveHabit() {
   const d = sheet.draft;
   const name = d.name.trim();
   if (!name) { toast('Escribe un nombre para tu hábito'); document.getElementById('f-name')?.focus(); return; }
-  if (d.freq !== 'weekly' && !d.days.length) { toast('Elige al menos un día'); return; }
+  if (d.freq !== 'weekly' && !d.days.length && d.kind !== 'quit') { toast('Elige al menos un día'); return; }
+  const quit = d.kind === 'quit';
+  const tk = keyOf(today());
+  const since = quit && d.since && d.since <= tk ? d.since : null;
+  const old = sheet.mode === 'edit' ? findHabit(sheet.id).challenge : null;
+  const challenge = d.challenge ? (old && old.days === d.challenge ? old : { days: d.challenge, start: since && sheet.mode === 'add' ? since : tk }) : undefined;
   const fields = {
     emoji: d.emoji, name, days: d.freq === 'weekly' ? [...ALL_DAYS] : [...d.days].sort(), time: d.time,
     freq: d.freq, perWeek: d.perWeek, target: d.kind === 'counter' ? Math.max(2, d.target) : 1,
@@ -261,9 +282,13 @@ function saveHabit() {
     remind: d.remind !== false, kind: d.kind,
     labels: d.kind === 'choice' ? d.labels.map((x) => (x || '').trim()) : undefined,
     sleepGoal: d.kind === 'sleep' ? d.sleepGoal : undefined,
+    challenge,
   };
+  // Dejar algo: todos los días, sin hora ni recordatorio; empieza desde el día que lo dejaste.
+  if (quit) Object.assign(fields, { days: [...ALL_DAYS], freq: 'days', time: '', remind: false });
+  if (since) fields.createdAt = since;
   if (sheet.mode === 'add') {
-    state.habits.push({ id: uid(), createdAt: keyOf(today()), ...fields });
+    state.habits.push({ id: uid(), createdAt: tk, ...fields });
     toast(`${d.emoji} Hábito creado`);
   } else {
     Object.assign(findHabit(sheet.id), fields);
@@ -527,7 +552,7 @@ const actions = {
   'edit-habit': (el) => openHabit(el.dataset.id),
   'habit-suggest': (el) => {
     const [emoji, name, m, extra = {}] = HABIT_SUGGESTIONS[+el.dataset.i];
-    Object.assign(sheet.draft, { emoji, name, time: momentTime(m), freq: 'days', perWeek: 3, target: 1, unit: '', kind: 'check', labels: ['', '', ''], sleepGoal: 8, ...structuredClone(extra) });
+    Object.assign(sheet.draft, { emoji, name, time: momentTime(m), freq: 'days', perWeek: 3, target: 1, unit: '', kind: 'check', labels: ['', '', ''], sleepGoal: 8, days: [...ALL_DAYS], ...structuredClone(extra) });
     if (!extra.kind) sheet.draft.kind = sheet.draft.target > 1 ? 'counter' : 'check';
     renderSheet();
   },
@@ -542,6 +567,41 @@ const actions = {
     if (d.kind === 'counter' && d.target < 2) { d.target = 8; d.unit = d.unit || 'vasos'; }
     if (d.kind !== 'counter') d.target = 1;
     renderSheet();
+  },
+  'habit-challenge': (el) => { sheet.draft.challenge = +el.dataset.v; renderSheet(); },
+  // Retos listos: usa el hábito si ya lo tienes, si no lo crea.
+  'challenge-start': (el) => {
+    const [, title, days, i] = CHALLENGES[+el.dataset.i];
+    const name = HABIT_SUGGESTIONS[i][1];
+    let h = state.habits.find((x) => x.name === name);
+    if (!h) { h = habitFromSuggestion(i, momentTime(HABIT_SUGGESTIONS[i][2]), uid); state.habits.push(h); }
+    h.challenge = { days, start: keyOf(today()) };
+    save(); toast(`🎯 ¡Reto empezado! ${title}`); render();
+  },
+  'challenge-stop': (el) => {
+    const h = findHabit(el.dataset.id);
+    if (!h || !confirm(`¿Dejar el reto de ${h.name}? Tu hábito y tu historial se quedan.`)) return;
+    delete h.challenge; save(); render();
+  },
+  // Pausa: vacaciones / enfermo
+  pause: () => openSheet('pause', { draft: { reason: 'vacaciones', len: 7 } }),
+  'pause-reason': (el) => { sheet.draft.reason = el.dataset.v; renderSheet(); },
+  'pause-len': (el) => { sheet.draft.len = +el.dataset.v; renderSheet(); },
+  'pause-start': () => {
+    const { reason, len } = sheet.draft;
+    const from = keyOf(today());
+    const to = len ? keyOf(addDays(today(), len - 1)) : null;
+    state.pauses = [...(state.pauses || []), { from, to, reason }];
+    save(); closeSheet();
+    toast(`${PAUSE_REASONS[reason][0]} Pausa activada · tus rachas están a salvo`); render();
+  },
+  'pause-end': () => {
+    const p = activePause();
+    if (!p) return;
+    const tk = keyOf(today());
+    if (p.from === tk) state.pauses = state.pauses.filter((x) => x !== p);
+    else p.to = keyOf(addDays(today(), -1));
+    save(); if (sheet) closeSheet(); toast('¡Bienvenido de vuelta! 💪'); render();
   },
   'habit-sleepgoal': (el) => { sheet.draft.sleepGoal = Math.min(12, Math.max(4, sheet.draft.sleepGoal + +el.dataset.v)); renderSheet(); },
   'choice-pick': (el) => pickChoice(sheet.id, el.dataset.v),

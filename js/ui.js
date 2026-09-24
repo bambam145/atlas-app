@@ -2,7 +2,7 @@
 import { icon } from './icons.js';
 import { esc, fmtTime, fmtDay, today, addDays } from './util.js';
 import { statusOf, streakOf, streakText, isCounter, isWeekly, countOf, targetOf, weekCount, perWeekOf,
-  isChoice, isSleep, choiceLabelOf, timeOf, isGlasses, litersText, sleepOf, sleepMinutes, fmtDuration, sleepGoalOf } from './habits.js';
+  isChoice, isSleep, isQuit, choiceLabelOf, timeOf, isGlasses, litersText, sleepOf, sleepMinutes, fmtDuration, sleepGoalOf, challengeOf, bestOf } from './habits.js';
 import { taskMeta, CATEGORY_ICON, isOverdue } from './tasks.js';
 
 export function pageHead({ eyebrow, title, sub = '', right = '' }) {
@@ -44,6 +44,7 @@ function registeredInfo(h, d, s) {
     if (rec?.bed) return `<span>${icon('moon')} Te acostaste ${fmtTime(rec.bed)} · toca al despertar</span>`;
     return `<span>${icon('moon')} Meta ${String(sleepGoalOf(h)).replace('.', ',')} h · toca para registrar</span>`;
   }
+  if (isQuit(h)) return s === 'none' ? `<span class="tone-text none">Recaíste · mañana empiezas de nuevo</span>` : `<span class="tone-text good">Limpio hoy</span><span>Récord ${bestOf(h)}</span>`;
   if (isChoice(h)) return s ? `<span class="tone-text ${TONE[s]}">${esc(choiceLabelOf(h, s))}${when}</span>` : `<span>${icon('repeat')} Toca para registrar</span>`;
   if (s === 'done') return `<span>${icon('check')} Hecho${when}</span>`;
   return `<span>${icon('repeat')} Hábito</span>`;
@@ -54,7 +55,7 @@ export function habitRow(h, d, { pop } = {}) {
   const s = statusOf(h, d);
   const counter = isCounter(h);
   const weekly = isWeekly(h);
-  const toned = isChoice(h) || isSleep(h);
+  const toned = isChoice(h) || isSleep(h) || isQuit(h);
   const count = counter ? countOf(h, d) : 0;
   const cls = s === 'skip' ? ' is-skip' : s ? ' is-done' : '';
   const n = streakOf(h);
@@ -65,7 +66,9 @@ export function habitRow(h, d, { pop } = {}) {
     const extra = count > targetOf(h) ? ` · +${count - targetOf(h)} 🎉` : '';
     info = `<span>${icon('repeat')} ${count} de ${targetOf(h)} ${esc(h.unit || 'veces')}${isGlasses(h) && count ? ` · ${litersText(count)}` : ''}${extra}</span>`;
   } else info = registeredInfo(h, d, s);
-  const meta = `${info}${s === 'skip' ? '' : `<span class="${n ? 'fire' : ''}">${icon('flame')} ${streakText(n, h)}</span>`}`;
+  const ch = challengeOf(h);
+  const reto = ch ? `<span class="reto-tag${ch.complete ? ' is-done' : ''}">${ch.complete ? '🏅' : icon('target')} Reto ${ch.done}/${ch.days}</span>` : '';
+  const meta = `${info}${s === 'skip' ? '' : `<span class="${n ? 'fire' : ''}">${icon('flame')} ${streakText(n, h)}</span>`}${reto}`;
   return `
     <div class="item${cls}${toned ? ' is-toned' : ''}${pop ? ' pop' : ''}${counter ? ' is-counter' : ''}" data-action="toggle-habit" data-id="${h.id}" role="button" tabindex="0" aria-pressed="${s === 'done'}"${counter ? ` aria-label="${esc(h.name)}: ${count} de ${targetOf(h)}. Toca para sumar uno."` : ''}>
       ${timeCol(h.time)}

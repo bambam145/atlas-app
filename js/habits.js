@@ -6,12 +6,15 @@
 //     unit?:   "vasos", "páginas"… (solo para contador),
 //     freq?:   'days' (días fijos, por defecto) | 'weekly' (N veces por semana, cualquier día),
 //     perWeek?: N para freq 'weekly',
-//     kind?:   'check' | 'counter' | 'choice' (bien / a medias / no lo hice) | 'sleep' (horas de sueño),
+//     kind?:   'check' | 'counter' | 'choice' (bien / a medias / no lo hice) | 'sleep' (horas de sueño)
+//              | 'quit' (dejar algo: cada día sin recaer cuenta; la recaída se guarda como 'none'),
+//     challenge?: { days: 21|30|66, start: 'YYYY-MM-DD' } (reto: cumplirlo N días),
 //     labels?: [bien, a medias, no] para 'choice',
 //     sleepGoal?: horas para 'sleep' }
 // Registro diario (state.log[fecha][id]): 'done' | 'skip' | 'meh' | 'none' | número (avance del contador).
 //   'meh' = lo hiciste, pero no del todo (comí no sano, dormí menos). 'none' = no lo hiciste.
 // Hora en que se registró: state.times[fecha][id] = 'HH:MM'. Sueño: state.sleep[día en que despiertas] = { bed, wake }.
+// Pausas (vacaciones / enfermo): state.pauses = [{ from, to|null, reason }]; esos días no cuentan para nada.
 import { state, save } from './store.js';
 import { keyOf, fromKey, today, addDays, mondayOf, pad, toMinutes, DAY_SHORT, WEEK_ORDER } from './util.js';
 
@@ -42,6 +45,18 @@ export const HABIT_SUGGESTIONS = [
   ['📵', '1 hora sin redes', 'noche'],
   ['✍️', 'Escribir mi diario', 'noche'],
   ['🙏', 'Agradecer 3 cosas', 'manana'],
+  ['🚭', 'No fumar', 'libre', { kind: 'quit' }],
+  ['🍬', 'Cero azúcar', 'libre', { kind: 'quit' }],
+];
+
+// Retos listos para empezar: [emoji, título, días, índice de la sugerencia].
+export const CHALLENGES = [
+  ['💧', '30 días tomando agua', 30, 0],
+  ['🍳', '21 días desayunando sano', 21, 5],
+  ['🚭', '30 días sin fumar', 30, 12],
+  ['🏃', '21 días caminando', 21, 3],
+  ['📚', '30 días leyendo', 30, 1],
+  ['🍬', '21 días sin azúcar', 21, 13],
 ];
 
 export const EMOJIS = [
@@ -58,6 +73,13 @@ export const kindOf = (h) => h.kind || (targetOf(h) > 1 ? 'counter' : 'check');
 export const isCounter = (h) => kindOf(h) === 'counter' && targetOf(h) > 1;
 export const isChoice = (h) => kindOf(h) === 'choice';
 export const isSleep = (h) => kindOf(h) === 'sleep';
+export const isQuit = (h) => kindOf(h) === 'quit';
+
+/* ---------- Pausa (vacaciones / enfermo) ---------- */
+
+export const PAUSE_REASONS = { vacaciones: ['🏖️', 'Vacaciones'], enfermo: ['🤒', 'Enfermo'], descanso: ['🧘', 'Descanso'] };
+export const isPaused = (d) => { const k = keyOf(d); return (state.pauses || []).some((p) => k >= p.from && (!p.to || k <= p.to)); };
+export const activePause = () => { const k = keyOf(today()); return (state.pauses || []).find((p) => k >= p.from && (!p.to || k <= p.to)) || null; };
 
 // Opciones: el registro guarda 'done' (bien), 'meh' (a medias) o 'none' (no lo hice).
 export const CHOICE_VALUES = ['done', 'meh', 'none'];
@@ -116,7 +138,7 @@ export const isWeekly = (h) => h.freq === 'weekly';
 export const perWeekOf = (h) => Math.min(7, Math.max(1, h.perWeek || 3));
 
 // ¿Se puede hacer este día? (semanales: cualquier día)
-export const isScheduled = (h, d) => (isWeekly(h) || h.days.includes(d.getDay())) && keyOf(d) >= h.createdAt;
+export const isScheduled = (h, d) => (isWeekly(h) || h.days.includes(d.getDay())) && keyOf(d) >= h.createdAt && !isPaused(d);
 
 const rawOf = (h, d) => { const day = state.log[keyOf(d)]; return day ? day[h.id] : undefined; };
 
@@ -126,6 +148,8 @@ export const isDoneValue = (h, v) => v === 'done' || (typeof v === 'number' && v
 export function statusOf(h, d) {
   const v = rawOf(h, d);
   if (v === 'skip' || v === 'meh' || v === 'none') return v;
+  // Dejar algo: cada día sin recaída (hasta hoy) cuenta como cumplido.
+  if (isQuit(h)) return d <= today() && isScheduled(h, d) ? 'done' : null;
   return isDoneValue(h, v) ? 'done' : null; // 'done' | 'skip' | 'meh' | 'none' | null
 }
 
@@ -180,7 +204,25 @@ export function weekCount(h, anyDay) {
   }
   return n;
 }
-export const weekMet = (h, anyDay) => weekCount(h, anyDay) >= perWeekOf(h);
+// Los días en pausa bajan la meta de la semana (vacaciones no rompen la racha semanal).
+export function weekMet(h, anyDay) {
+  const mon = mondayOf(anyDay);
+  let paused = 0;
+  for (let i = 0; i < 7; i++) if (isPaused(addDays(mon, i))) paused++;
+  return weekCount(h, anyDay) >= Math.max(0, perWeekOf(h) - paused);
+}
+
+/* ---------- Retos ---------- */
+
+// Progreso del reto: cuántos días lo cumpliste desde que empezó (no hace falta que sean seguidos).
+export function challengeOf(h) {
+  const c = h.challenge;
+  if (!c || !c.days) return null;
+  const t = today();
+  let done = 0;
+  for (let d = fromKey(c.start); d <= t; d = addDays(d, 1)) if (statusOf(h, d) === 'done') done++;
+  return { days: c.days, start: c.start, done: Math.min(done, c.days), complete: done >= c.days };
+}
 
 function weeklyStreak(h) {
   const created = mondayOf(fromKey(h.createdAt));
@@ -308,12 +350,14 @@ export function daysLabel(days) {
 export function freqLabel(h) {
   const base = isWeekly(h) ? `${perWeekOf(h)} ${perWeekOf(h) === 1 ? 'vez' : 'veces'} por semana` : daysLabel(h.days);
   if (isSleep(h)) return `Meta ${String(sleepGoalOf(h)).replace('.', ',')} h · ${base}`;
+  if (isQuit(h)) return 'Cada día sin recaer suma';
   return isCounter(h) ? `${targetOf(h)} ${h.unit || 'veces'} al día · ${base}` : base;
 }
 
 export const byTime = (a, b) => (a.time || '99').localeCompare(b.time || '99') || a.createdAt.localeCompare(b.createdAt);
 export const streakText = (n, h) => {
   if (h && isWeekly(h)) return n > 0 ? `${n} ${n === 1 ? 'semana' : 'semanas'}` : 'Empieza esta semana';
+  if (h && isQuit(h)) return `${n} ${n === 1 ? 'día' : 'días'} limpio`;
   return n > 0 ? `${n} ${n === 1 ? 'día' : 'días'}` : 'Empieza hoy';
 };
 

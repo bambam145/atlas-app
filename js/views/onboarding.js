@@ -47,7 +47,7 @@ export function renderOnboarding() {
     body = `
       <h1 class="ob-title">¿En qué momento <span>haces cada uno?</span></h1>
       <p class="auth-p">Ya los acomodamos según lo usual: cambia lo que quieras. Así tu día queda en orden (desayuno temprano, almuerzo al mediodía, cena en la noche…).</p>
-      <div class="ob-times">${ob.picks.map((i) => {
+      <div class="ob-times">${ob.picks.filter((i) => HABIT_SUGGESTIONS[i][3]?.kind !== 'quit').map((i) => {
         const [e, n] = HABIT_SUGGESTIONS[i];
         const cur = obMoment(i);
         return `

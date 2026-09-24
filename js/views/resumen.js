@@ -3,7 +3,7 @@ import { state } from '../store.js';
 import { icon } from '../icons.js';
 import { today, keyOf, addDays, mondayOf, esc, fmtTime, pad, toMinutes, MONTHS } from '../util.js';
 import {
-  isScheduled, statusOf, isWeekly, isCounter, isChoice, isSleep, countOf, targetOf, timeOf, choiceLabels, CHOICE_VALUES,
+  isScheduled, statusOf, isWeekly, isCounter, isChoice, isSleep, isQuit, countOf, targetOf, timeOf, choiceLabels, CHOICE_VALUES,
   sleepMinutes, sleepGoalOf, fmtDuration, isGlasses, litersText, perWeekOf, dayStats, isPerfectDay, byTime,
 } from '../habits.js';
 import { label } from '../ui.js';
@@ -75,6 +75,10 @@ function habitSummary(h, days) {
       bar: bar([[ok, 'good'], [recs.length - ok, 'meh']], recs.length),
       text: `${ok} de ${recs.length} ${recs.length === 1 ? 'noche' : 'noches'} con tu meta de ${fmt1(sleepGoalOf(h))} h · te acostaste ~${fmtTime(avgClock(recs.map((r) => r.bed), true))} · despertaste ~${fmtTime(avgClock(recs.map((r) => r.wake)))}`,
     };
+  }
+  if (isQuit(h)) {
+    const slips = ds.filter((d) => statusOf(h, d) === 'none').length;
+    return { big: `${ds.length - slips}/${ds.length}`, unit: 'días limpio', bar: bar([[ds.length - slips, 'good'], [slips, 'none']], ds.length), text: slips ? `${slips} ${slips === 1 ? 'recaída' : 'recaídas'}` : 'Sin recaídas 💪' };
   }
   if (isChoice(h)) {
     const labels = choiceLabels(h);

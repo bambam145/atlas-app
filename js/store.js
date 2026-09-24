@@ -14,6 +14,7 @@ function empty() {
     journal: {},
     times: {}, // hora en que registraste cada hábito
     sleep: {}, // sueño por día: { bed, wake }
+    pauses: [], // vacaciones / enfermo: [{ from, to, reason }]
     categories: [...DEFAULT_CATEGORIES],
     profile: null, // { name, onboarded }
     refCode: null, // tu código de invitado (Invita y gana)
