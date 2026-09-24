@@ -509,12 +509,17 @@ const actions = {
   },
   'sync-now': () => pull().then(() => toast('✓ Sincronizado')).catch(() => toast('No se pudo sincronizar. Revisa tu conexión.')),
   'cloud-banner-off': () => { state.ui.cloudBannerOff = true; save(); render(); },
+  'push-banner-off': () => { state.ui.pushBannerOff = true; save(); render(); },
 
   // Ajustes y respaldo
   settings: () => { openSheet('settings'); refreshPush().then(() => { if (sheet?.type === 'settings') renderSheet(); }); },
   // Recordatorios
   'push-on': async () => {
-    try { await enablePush(); toast('🔔 Recordatorios activados'); }
+    try {
+      await enablePush(); toast('🔔 Recordatorios activados');
+      try { (await navigator.serviceWorker.ready).showNotification('🔔 ¡Listo! Así te avisaremos', { body: 'A la hora de tus hábitos y tareas. Puedes responder desde aquí.', icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'atlas-test' }); } catch { /* ignorar */ }
+      render();
+    }
     catch (e) { toast(e.message === 'denied' ? 'Bloqueaste las notificaciones en este navegador' : e.message === 'dismissed' ? 'Necesitamos tu permiso para avisarte' : 'No se pudo activar. Revisa tu conexión'); }
     renderSheet();
   },
@@ -1180,7 +1185,7 @@ onCloudChange(() => {
   if (uid && uid !== userWas) {
     try { localStorage.setItem('atlas-last-email', cloud.user.email); } catch { /* ignorar */ }
     auth.useOther = false;
-    refreshPush().then(() => { if (sheet?.type === 'settings') renderSheet(); });
+    refreshPush().then(() => { if (sheet?.type === 'settings') renderSheet(); if (!gate() && view === 'hoy') render(); });
     if (sheet?.type === 'login') closeSheet();
     let pending = false;
     try { pending = !!localStorage.getItem('atlas-login-pending'); localStorage.removeItem('atlas-login-pending'); } catch { /* ignorar */ }

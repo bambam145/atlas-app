@@ -7,6 +7,7 @@ import { progress } from '../xp.js';
 import { pageHead, label, habitRow, taskRow, quickAdd, emptyState } from '../ui.js';
 import { MOODS } from './diario.js';
 import { cloud, cloudEnabled, licenseInfo } from '../cloud.js';
+import { pushStatus, pushChecked } from '../push.js';
 
 export function greeting(allDone, hasItems) {
   const h = new Date().getHours();
@@ -63,6 +64,7 @@ export function renderHoy(ctx) {
     ${pageHead({ eyebrow: longDate(), title: greeting(allDone, hasItems), sub, right: themeBtn })}
     ${hasItems ? `<div class="progress${allDone ? ' is-full' : ''}" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>` : ''}
     ${pauseBanner()}
+    ${pushBanner()}
     ${cloudBanner()}
     ${trialBanner()}
     ${quickAdd()}
@@ -77,6 +79,38 @@ export function renderHoy(ctx) {
     ${ideasHtml()}`;
 
   return `<div class="two-col"><section class="col-main">${main}</section><aside class="col-side">${sidePanels()}</aside></div>`;
+}
+
+// Recordatorios apagados en este dispositivo: invitar a activarlos (sin ellos no llega ningún aviso).
+function pushBanner() {
+  if (!pushChecked() || state.ui.pushBannerOff || !state.habits.length) return '';
+  const st = pushStatus();
+  if (st === 'off') {
+    return `
+    <div class="banner">
+      <span class="banner-icon">${icon('bell')}</span>
+      <span class="banner-body"><b>Activa tus recordatorios</b><small>Te avisamos a la hora de tus hábitos y tareas, y respondes desde el aviso.</small></span>
+      <button class="pill small" data-action="push-on">Activar</button>
+      <button class="icon-btn sm" data-action="push-banner-off" aria-label="Ocultar aviso">${icon('x')}</button>
+    </div>`;
+  }
+  if (st === 'install') {
+    return `
+    <div class="banner">
+      <span class="banner-icon">${icon('bell')}</span>
+      <span class="banner-body"><b>Para recibir avisos en iPhone</b><small>Toca Compartir → "Agregar a inicio" y abre atlas desde ese ícono.</small></span>
+      <button class="icon-btn sm" data-action="push-banner-off" aria-label="Ocultar aviso">${icon('x')}</button>
+    </div>`;
+  }
+  if (st === 'denied') {
+    return `
+    <div class="banner">
+      <span class="banner-icon">${icon('bell')}</span>
+      <span class="banner-body"><b>Los avisos están bloqueados</b><small>Permite las notificaciones de atlas en los ajustes de tu celular o navegador.</small></span>
+      <button class="icon-btn sm" data-action="push-banner-off" aria-label="Ocultar aviso">${icon('x')}</button>
+    </div>`;
+  }
+  return '';
 }
 
 // Modo vacaciones / enfermo: las rachas quedan congeladas.
