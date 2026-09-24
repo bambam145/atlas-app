@@ -528,7 +528,7 @@ async function submitAuth() {
   if (mode === 'login' && !auth.password) return fail('Escribe tu contraseña.');
   if (mode === 'sent-link' || mode === 'sent-confirm') {
     const code = (auth.code || '').replace(/\D/g, '');
-    if (code.length !== 6) return fail('El código tiene 6 dígitos.');
+    if (code.length < 6 || code.length > 10) return fail('Escribe el código completo que llegó a tu correo.');
     Object.assign(auth, { busy: true, error: '' });
     render();
     try { markLoginPending(); await verifyCode(auth.email, code); auth.code = ''; }

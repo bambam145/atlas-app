@@ -195,7 +195,7 @@ function form() {
           ${auth.mode !== 'sent-reset' && EMAIL_CODES ? `
           <form class="auth-form code-form" data-form="auth" novalidate>
             <label class="auth-field"><span>¿Te llegó un código? Escríbelo</span>
-              <input class="input code-input" id="a-code" data-auth="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" value="${esc(auth.code || '')}">
+              <input class="input code-input" id="a-code" data-auth="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="••••••" value="${esc(auth.code || '')}">
             </label>
             ${submit('Entrar con el código', 'Verificando…')}
           </form>` : ''}
