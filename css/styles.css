@@ -1223,6 +1223,15 @@ a.pill { text-decoration: none; }
 .choice-opt:active { transform: scale(0.98); }
 .choice-opt.is-on { border-color: var(--text-2); background: var(--surface-3); }
 
+/* Marcar o corregir un día */
+.day-nav { margin: 4px 0 14px; }
+.tone-dot.done { background: var(--text); }
+.tone-dot.skip { background: transparent; box-shadow: inset 0 0 0 1.5px var(--text-3); }
+button.wd { border: 0; cursor: pointer; font-family: inherit; }
+button.wd:active { transform: scale(0.92); }
+.grid .dot[data-action] { cursor: pointer; }
+.grid .dot[data-action]:hover { outline: 1.5px solid var(--text-3); outline-offset: 1px; }
+
 /* Hoja: sueño */
 .time-now { display: flex; gap: 8px; align-items: center; }
 .time-now .input { flex: 1; min-width: 0; }

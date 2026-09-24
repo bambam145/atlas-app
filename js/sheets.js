@@ -1,9 +1,9 @@
 // Hojas (modales): crear/editar hábito, tarea y meta; selector "+ Nuevo"; menú "Más" en celular.
 import { state } from './store.js';
 import { icon } from './icons.js';
-import { esc, keyOf, today, addDays, fmtDay, fmtTime, pad, DAY_LETTER, DAY_SHORT, WEEK_ORDER, ALL_DAYS } from './util.js';
+import { esc, keyOf, fromKey, today, addDays, fmtDay, fmtTime, pad, DAY_LETTER, DAY_SHORT, DAY_LONG, MONTHS, WEEK_ORDER, ALL_DAYS } from './util.js';
 import { findHabit, daysLabel, HABIT_SUGGESTIONS, EMOJIS, MOMENTS, momentOfTime, kindOf, choiceLabels, CHOICE_DEFAULT, CHOICE_VALUES,
-  statusOf, timeOf, sleepMinutes, sleepGoalOf, fmtDuration, litersText } from './habits.js';
+  statusOf, timeOf, sleepMinutes, sleepGoalOf, fmtDuration, litersText, isScheduled, isChoice, isCounter, isSleep, countOf, targetOf } from './habits.js';
 import { findTask, STATUS, CATEGORY_ICON } from './tasks.js';
 import { findGoal, GOAL_SUGGESTIONS, currentOf } from './goals.js';
 import { fmtAmount } from './views/metas.js';
@@ -35,7 +35,7 @@ export function renderSheet() {
   const enter = sheet.fresh ? ' enter' : '';
   sheet.fresh = false;
   document.body.classList.add('has-sheet');
-  const body = { habit: habitSheet, choice: choiceSheet, sleep: sleepSheet, task: taskSheet, goal: goalSheet, 'goal-add': goalAddSheet, new: newSheet, more: moreSheet, settings: settingsSheet, login: loginSheet, password: passwordSheet, activate: activateSheet, share: shareSheet, invite: inviteSheet }[sheet.type]();
+  const body = { habit: habitSheet, choice: choiceSheet, sleep: sleepSheet, day: daySheet, task: taskSheet, goal: goalSheet, 'goal-add': goalAddSheet, new: newSheet, more: moreSheet, settings: settingsSheet, login: loginSheet, password: passwordSheet, activate: activateSheet, share: shareSheet, invite: inviteSheet }[sheet.type]();
   root.innerHTML = `
     <div class="backdrop${enter}" data-action="close-sheet"></div>
     <div class="sheet${enter} sheet-${sheet.type}" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
@@ -139,6 +139,49 @@ function choiceSheet() {
     ${s && s !== 'skip' ? `<div class="sheet-actions"><button class="link-danger" data-action="choice-clear">${icon('x')} Quitar registro</button></div>` : ''}`;
 }
 
+/* ---------- Marcar o corregir un día (pasado o de hoy) ---------- */
+
+const longDay = (k) => { const d = fromKey(k); return k === keyOf(today()) ? 'hoy' : `${DAY_LONG[d.getDay()]} ${d.getDate()} de ${MONTHS[d.getMonth()]}`; };
+
+// Flechas ← → para pasar de un día a otro sin cerrar la hoja.
+function dayNav(h, k, action) {
+  const prev = keyOf(addDays(fromKey(k), -1));
+  const next = keyOf(addDays(fromKey(k), 1));
+  return `<div class="nav-group day-nav">
+    <button class="icon-btn boxed" data-action="${action}" data-v="${prev}" aria-label="Día anterior" ${prev < h.createdAt ? 'disabled' : ''}>${icon('left')}</button>
+    <span class="range">${fmtDay(k)}</span>
+    <button class="icon-btn boxed" data-action="${action}" data-v="${next}" aria-label="Día siguiente" ${next > keyOf(today()) ? 'disabled' : ''}>${icon('right')}</button>
+  </div>`;
+}
+
+function daySheet() {
+  const h = findHabit(sheet.id);
+  const d = fromKey(sheet.day);
+  const s = statusOf(h, d);
+  const opt = (v, dot, text) => `<button class="choice-opt${s === v ? ' is-on' : ''}" data-action="day-set" data-v="${v}" aria-pressed="${s === v}">${dot}<span>${esc(text)}</span>${s === v ? icon('check') : ''}</button>`;
+  let body;
+  if (!isScheduled(h, d)) body = '<p class="hint">Ese día no tocaba este hábito.</p>';
+  else if (isCounter(h)) {
+    const n = countOf(h, d);
+    body = `<div class="stepper-row">
+      <div class="stepper"><button data-action="day-count" data-v="-1" aria-label="Menos">${icon('minus')}</button><b>${n}</b><button data-action="day-count" data-v="1" aria-label="Más">${icon('plus')}</button></div>
+      <span>de ${targetOf(h)} ${esc(h.unit || 'veces')}${/vaso/i.test(h.unit || '') && n ? ` · ${litersText(n)}` : ''}</span></div>`;
+  } else if (isChoice(h)) {
+    const labels = choiceLabels(h);
+    body = `<div class="choice-opts">${CHOICE_VALUES.map((v, i) => opt(v, `<i class="tone-dot ${TONE_CLASS[v]}"></i>`, labels[i])).join('')}</div>`;
+  } else {
+    body = `<div class="choice-opts">${opt('done', '<i class="tone-dot done"></i>', 'Lo hice')}${s === 'skip' ? opt('skip', '<i class="tone-dot skip"></i>', 'Descanso') : ''}</div>`;
+  }
+  const at = timeOf(h, d);
+  return `
+    <h2 id="sheet-title">${h.emoji} ${esc(h.name)}. <span>${cap1(longDay(sheet.day))}</span></h2>
+    ${dayNav(h, sheet.day, 'day-move')}
+    ${body}
+    ${at ? `<p class="hint">Registrado a las ${fmtTime(at)}.</p>` : ''}
+    ${s && !isCounter(h) ? `<div class="sheet-actions"><button class="link-danger" data-action="day-set" data-v="">${icon('x')} Quitar registro</button></div>` : ''}`;
+}
+const cap1 = (x) => x[0].toUpperCase() + x.slice(1);
+
 /* ---------- Sueño ---------- */
 
 const nowHM = () => { const n = new Date(); return `${pad(n.getHours())}:${pad(n.getMinutes())}`; };
@@ -163,6 +206,7 @@ function sleepSheet() {
   const d = sheet.draft;
   const tk = keyOf(today());
   const tonight = sheet.day > tk;
+  const past = sheet.day < tk;
   const min = sleepMinutes(d);
   const goal = sleepGoalOf(h);
   const ok = min !== null && min >= goal * 60 - 15;
@@ -171,11 +215,11 @@ function sleepSheet() {
       <input class="input" type="time" data-bind="${key}" value="${esc(d[key])}">
       <button class="pill ghost small" data-action="sleep-now" data-v="${key}">Ahora</button></div>`);
   return `
-    <h2 id="sheet-title">${h.emoji} Sueño. <span>${tonight ? 'Esta noche' : 'Anoche'}</span></h2>
-    <div class="seg full">
+    <h2 id="sheet-title">${h.emoji} Sueño. <span>${past ? `Despertaste el ${longDay(sheet.day)}` : tonight ? 'Esta noche' : 'Anoche'}</span></h2>
+    ${past ? dayNav(h, sheet.day, 'sleep-day') : `<div class="seg full">
       <button class="seg-btn${!tonight ? ' is-on' : ''}" data-action="sleep-day" data-v="${tk}">Anoche</button>
       <button class="seg-btn${tonight ? ' is-on' : ''}" data-action="sleep-day" data-v="${keyOf(addDays(today(), 1))}">Esta noche</button>
-    </div>
+    </div>`}
     <div class="two-fields">
       ${timeField('bed', '🌙 Me acosté')}
       ${timeField('wake', '☀️ Me desperté')}
@@ -454,7 +498,9 @@ function remindersBlock() {
         ${tog(r.habits, 'rem-habits', 'A la hora de cada hábito')}
         ${tog(r.summary, 'rem-summary', 'Resumen de la noche')}
         ${r.summary ? `<label class="toggle-row"><span>Hora del resumen</span><input class="input time-mini" type="time" data-rem-time value="${esc(r.summaryTime)}"></label>` : ''}
+        ${tog(r.weekly, 'rem-weekly', 'Resumen de la semana (domingo 7 pm)')}
       </div>
+      <p class="hint">En Android puedes responder desde el aviso: <b>Sano</b>, <b>+1 vaso</b>, <b>✓ Hecho</b>… sin abrir la app.</p>
       <div class="stack">
         <button class="pill ghost" data-action="push-test">${icon('bell')} Probar aviso</button>
         <button class="pill ghost" data-action="push-off">Desactivar en este dispositivo</button>

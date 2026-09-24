@@ -35,7 +35,8 @@ function gridHtml(h) {
       else if (k === tk) { c += ' pending'; tip = `${label}: pendiente`; }
       else { c += ' miss'; tip = `${label}: no cumplido`; }
     }
-    out += `<i class="${c}"${tip ? ` data-tip="${tip}"` : ''}></i>`;
+    const editable = d <= t && isScheduled(h, d);
+    out += `<i class="${c}"${tip ? ` data-tip="${tip}"` : ''}${editable ? ` data-action="day-edit" data-id="${h.id}" data-date="${k}"` : ''}></i>`;
   }
   return `<div class="grid">${out}</div>`;
 }
@@ -60,7 +61,10 @@ function weekHtml(h) {
       else if (s === 'skip') c += ' skip';
     }
     if (keyOf(d) === keyOf(t)) c += ' today';
-    return `<span class="${c}">${DAY_LETTER[d.getDay()]}</span>`;
+    const editable = d <= t && isScheduled(h, d);
+    return editable
+      ? `<button class="${c}" data-action="day-edit" data-id="${h.id}" data-date="${keyOf(d)}" aria-label="Editar ${DAY_LETTER[d.getDay()]} ${d.getDate()}">${DAY_LETTER[d.getDay()]}</button>`
+      : `<span class="${c}">${DAY_LETTER[d.getDay()]}</span>`;
   }).join('')}</div>`;
 }
 
@@ -114,7 +118,7 @@ export function renderHabitos() {
   const head = pageHead({
     eyebrow: 'Hábitos',
     title: 'La constancia <span>se construye día a día.</span>',
-    sub: state.habits.length ? `Cada punto es un día. <b>Blanco</b> = cumplido, <b>anillo</b> = descanso.${state.habits.some((h) => isChoice(h) || isSleep(h)) ? ' En comidas y sueño: <b class="tone-text good">verde</b> bien, <b class="tone-text meh">lavanda</b> a medias, <b class="tone-text none">gris</b> no lo hiciste.' : ''}` : '',
+    sub: state.habits.length ? `Cada punto es un día: tócalo para marcar o corregir ese día. <b>Blanco</b> = cumplido, <b>anillo</b> = descanso.${state.habits.some((h) => isChoice(h) || isSleep(h)) ? ' En comidas y sueño: <b class="tone-text good">verde</b> bien, <b class="tone-text meh">lavanda</b> a medias, <b class="tone-text none">gris</b> no lo hiciste.' : ''}` : '',
     right: `<button class="pill small head-btn" data-action="new-habit">${icon('plus')} Nuevo hábito</button>`,
   });
   if (!state.habits.length) {

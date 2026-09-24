@@ -1,5 +1,5 @@
 // Service worker: la app abre sin internet. Red primero, caché como respaldo.
-const CACHE = 'atlas-v24';
+const CACHE = 'atlas-v25';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
   './js/main.js', './js/store.js', './js/config.js', './js/cloud.js', './js/util.js', './js/icons.js', './js/ui.js', './js/sheets.js',
@@ -45,16 +45,40 @@ self.addEventListener('push', (e) => {
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
   e.waitUntil(self.registration.showNotification(d.title || 'atlas', {
     body: d.body || '', tag: d.tag || 'atlas', renotify: true,
-    icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', data: { url: d.url || './' },
+    icon: 'icons/icon-192.png', badge: 'icons/icon-192.png',
+    actions: d.act ? (d.actions || []) : [], // botones: "Sano", "+1 vaso"…
+    data: { url: d.url || './', act: d.act || null, title: d.title || '' },
   }));
 });
 
-// Tocar el aviso abre (o enfoca) atlas
-self.addEventListener('notificationclick', (e) => {
-  e.notification.close();
-  const url = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
-  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+const openApp = (path) => {
+  const url = new URL(path || './', self.registration.scope).href;
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
     const w = list.find((c) => c.url.startsWith(self.registration.scope));
-    return w ? w.focus() : self.clients.openWindow(url);
-  }));
+    if (w) { if (path && path !== './') w.navigate(url).catch(() => {}); return w.focus(); }
+    return self.clients.openWindow(url);
+  });
+};
+
+// Botón del aviso: registra sin abrir la app. Tocar el aviso: abre (o enfoca) atlas.
+self.addEventListener('notificationclick', (e) => {
+  const n = e.notification;
+  n.close();
+  const d = n.data || {};
+  if (!e.action || !d.act) { e.waitUntil(openApp(d.url)); return; }
+  const btn = (n.actions || []).find((a) => a.action === e.action);
+  e.waitUntil(
+    fetch(d.act.url, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ token: d.act.token, value: e.action }) })
+      .then((r) => r.json())
+      .then((res) => {
+        if (!res.ok) throw new Error('no');
+        // La app (si está abierta) baja el cambio de la nube.
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => list.forEach((c) => c.postMessage({ type: 'atlas-pull' })));
+        return self.registration.showNotification(`✓ ${d.title}`, {
+          body: `${btn ? btn.title : 'Registrado'} · guardado`, tag: n.tag, silent: true,
+          icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', data: { url: './' },
+        });
+      })
+      .catch(() => openApp('./')) // sin internet o error: abrir la app para registrarlo ahí
+  );
 });

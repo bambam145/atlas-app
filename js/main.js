@@ -52,6 +52,10 @@ function openFromMap(n) {
 const DOCK_MAIN = ['hoy', 'tareas', 'habitos'];
 
 let view = 'hoy';
+{
+  const v = new URLSearchParams(location.search).get('v');
+  if (v && VIEWS[v]) { view = v; history.replaceState(null, '', location.pathname); }
+}
 let authShownAt = 0;
 let lastView = null;
 let pop = null;
@@ -469,6 +473,7 @@ const actions = {
   },
   'rem-habits': () => { state.reminders = { ...reminders(), habits: !reminders().habits }; save(); renderSheet(); },
   'rem-summary': () => { state.reminders = { ...reminders(), summary: !reminders().summary }; save(); renderSheet(); },
+  'rem-weekly': () => { state.reminders = { ...reminders(), weekly: !reminders().weekly }; save(); renderSheet(); },
   'install-app': async () => {
     if (!canPromptInstall()) { openSheet('settings'); return; }
     const ok = await promptInstall();
@@ -543,6 +548,27 @@ const actions = {
   'choice-clear': () => { const h = findHabit(sheet.id); setStatus(h, today(), null); closeSheet(); render(); },
   'sleep-now': (el) => { sheet.draft[el.dataset.v] = nowTime(); renderSheet(); },
   'sleep-save': saveSleep,
+  // Marcar o corregir cualquier día (desde la cuadrícula o la semana)
+  'day-edit': (el) => {
+    const h = findHabit(el.dataset.id);
+    if (!h) return;
+    if (isSleep(h)) openSleep(h, el.dataset.date);
+    else openSheet('day', { id: h.id, day: el.dataset.date });
+  },
+  'day-move': (el) => { sheet.day = el.dataset.v; renderSheet(); },
+  'day-set': (el) => {
+    const h = findHabit(sheet.id);
+    const d = fromKey(sheet.day);
+    const v = el.dataset.v || null;
+    setStatus(h, d, statusOf(h, d) === v ? null : v);
+    render();
+  },
+  'day-count': (el) => {
+    const h = findHabit(sheet.id);
+    const d = fromKey(sheet.day);
+    setCount(h, d, countOf(h, d) + +el.dataset.v);
+    render();
+  },
   'sleep-day': (el) => openSleep(findHabit(sheet.id), el.dataset.v),
   'sleep-clear': () => { const h = findHabit(sheet.id); setSleep(h, fromKey(sheet.day), null); closeSheet(); toast('Registro de sueño borrado'); render(); },
   'habit-moment': (el) => { sheet.draft.time = momentTime(el.dataset.v); renderSheet(); },
@@ -987,4 +1013,8 @@ initCloud();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  // Registraste algo desde un botón del aviso: bajar el cambio de la nube.
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data?.type === 'atlas-pull' && cloud.user) pull().catch(() => {});
+  });
 }

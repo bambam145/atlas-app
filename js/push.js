@@ -4,7 +4,7 @@ import { VAPID_PUBLIC_KEY } from './config.js';
 import { cloud, cloudEnabled, savePushSub, deletePushSub } from './cloud.js';
 import { state } from './store.js';
 
-export const REMINDER_DEFAULTS = { habits: true, summary: true, summaryTime: '21:00' };
+export const REMINDER_DEFAULTS = { habits: true, summary: true, summaryTime: '21:00', weekly: true };
 export const reminders = () => ({ ...REMINDER_DEFAULTS, ...(state.reminders || {}) });
 
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
