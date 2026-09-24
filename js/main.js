@@ -27,6 +27,7 @@ import { pw, renderPaywall } from './views/paywall.js';
 import { renderStreakImage, shareNative, shareText, APP_URL } from './share.js';
 import { initPixel, trackRegistration, trackPurchase } from './pixel.js';
 import { enablePush, disablePush, forgetPush, refreshPush, reminders } from './push.js';
+import { initInstall, promptInstall, canPromptInstall, installPlatform } from './install.js';
 
 // Enlace para compartir: incluye tu código de invitado si ya lo tienes.
 const shareLink = () => (state.refCode ? `${APP_URL}?ref=${state.refCode}` : APP_URL);
@@ -421,6 +422,13 @@ const actions = {
   },
   'rem-habits': () => { state.reminders = { ...reminders(), habits: !reminders().habits }; save(); renderSheet(); },
   'rem-summary': () => { state.reminders = { ...reminders(), summary: !reminders().summary }; save(); renderSheet(); },
+  'install-app': async () => {
+    if (!canPromptInstall()) { openSheet('settings'); return; }
+    const ok = await promptInstall();
+    if (ok) toast('✓ atlas se está instalando');
+    paintInstall();
+    if (sheet?.type === 'settings') renderSheet();
+  },
   'set-theme': (el) => { state.theme = el.dataset.v; save(); render(); },
   'export-data': () => {
     const blob = new Blob([JSON.stringify({ app: 'atlas', version: 1, exportedAt: new Date().toISOString(), ...state }, null, 2)], { type: 'application/json' });
@@ -862,6 +870,17 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && !g
 document.getElementById('side-brand').innerHTML = `${logo(30)}${wordmark()}`;
 captureRef();
 initPixel();
+
+// Botón "Instalar app" de la barra lateral (solo cuando el navegador lo permite)
+function paintInstall() {
+  const b = document.getElementById('side-install');
+  if (b) b.hidden = !(canPromptInstall() && installPlatform() === 'desktop');
+}
+initInstall((installed) => {
+  paintInstall();
+  if (sheet?.type === 'settings' || sheet?.type === 'more') renderSheet();
+  if (installed) toast('✓ atlas quedó instalada');
+});
 render();
 
 // Nube: al cambiar el estado, actualizar el indicador y la hoja de ajustes abierta.

@@ -11,6 +11,7 @@ import { cloud, cloudEnabled, statusLabel, licenseInfo, PLAN_LABEL } from './clo
 import { BUY_URL } from './config.js';
 import { APP_URL } from './share.js';
 import { pushStatus, reminders } from './push.js';
+import { installPlatform, canPromptInstall, APK_URL } from './install.js';
 
 export let sheet = null;
 
@@ -373,6 +374,22 @@ function remindersBlock() {
   return field('Recordatorios', body, st === 'on' ? 'activos' : '');
 }
 
+function installBlock() {
+  const p = installPlatform();
+  let body;
+  if (p === 'installed') body = `<p class="hint">${icon('check')} <span>Estás usando la app instalada. Tus datos se sincronizan con tus otros dispositivos.</span></p>`;
+  else if (p === 'android') body = `<p class="hint"><span>Descarga la app para Android: se abre como cualquier app, con su ícono y avisos.</span></p>
+      <a class="pill" href="${APK_URL}" download="atlas.apk" style="width:100%">${icon('download')} Descargar app para Android</a>
+      <p class="hint"><span>Si tu celular pregunta, permite instalar apps desde tu navegador. Es segura: es la misma atlas.</span></p>`;
+  else if (p === 'ios') body = `<p class="hint"><span>En iPhone se instala desde Safari:</span></p>
+      <ol class="install-steps"><li>Toca <b>Compartir</b> (el cuadro con la flecha ↑)</li><li>Elige <b>Agregar a inicio</b></li><li>Abre atlas desde el nuevo ícono</li></ol>`;
+  else body = canPromptInstall()
+    ? `<p class="hint"><span>Instálala en esta computadora: ventana propia, ícono en el escritorio y recordatorios.</span></p>
+      <button class="pill" data-action="install-app" style="width:100%">${icon('monitor')} Instalar en esta computadora</button>`
+    : `<p class="hint"><span>Abre atlas en <b>Chrome</b> o <b>Edge</b> y toca el ícono de instalar <b>⊕</b> en la barra de direcciones. Si ya la instalaste, búscala en el menú Inicio.</span></p>`;
+  return field('App', body);
+}
+
 function settingsSheet() {
   const counts = `${state.habits.length} hábitos · ${state.tasks.length} tareas · ${state.goals.length} metas · ${Object.keys(state.journal).length} notas`;
   return `
@@ -380,6 +397,7 @@ function settingsSheet() {
     ${field('Tu nombre', `<div class="field"><input id="f-profile-name" class="input" maxlength="30" value="${esc(state.profile?.name || '')}" placeholder="Tu nombre"><button class="pill small" data-action="save-name">Guardar</button></div>`)}
     ${planBlock()}
     ${cloudEnabled && cloud.user ? `<button class="pill ghost" data-action="invite" style="margin-top:10px;width:100%">${icon('gift')} Invita y gana 7 días por amigo</button>` : ''}
+    ${installBlock()}
     ${remindersBlock()}
     ${accountBlock()}
     ${field('Apariencia', `<div class="seg full">
@@ -411,6 +429,7 @@ function moreSheet() {
       ${item('mapa', 'network', 'Mapa')}
       ${item('logros', 'trophy', 'Logros')}
     </div>
+    ${installPlatform() !== 'installed' ? `<button class="more-item row invite-row" data-action="settings">${icon(installPlatform() === 'desktop' ? 'monitor' : 'smartphone')}<span>Instalar la app en este dispositivo</span></button>` : ''}
     ${cloudEnabled ? `<button class="more-item row invite-row" data-action="invite">${icon('gift')}<span>Invita y gana · 7 días extra por amigo</span></button>` : ''}
     <div class="more-grid two">
       <button class="more-item row" data-action="settings">${icon('settings')}<span>Ajustes y respaldo</span></button>
