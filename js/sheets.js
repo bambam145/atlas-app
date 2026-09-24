@@ -4,7 +4,8 @@ import { icon } from './icons.js';
 import { esc, keyOf, fromKey, today, addDays, fmtDay, fmtTime, pad, DAY_LETTER, DAY_SHORT, DAY_LONG, MONTHS, WEEK_ORDER, ALL_DAYS } from './util.js';
 import { findHabit, daysLabel, HABIT_SUGGESTIONS, EMOJIS, MOMENTS, momentOfTime, kindOf, choiceLabels, CHOICE_DEFAULT, CHOICE_VALUES,
   statusOf, timeOf, sleepMinutes, sleepGoalOf, fmtDuration, litersText, isScheduled, isChoice, isCounter, isSleep, isQuit, countOf, targetOf,
-  streakOf, bestOf, activePause, PAUSE_REASONS } from './habits.js';
+  streakOf, bestOf, activePause, PAUSE_REASONS, noteOf, notesOf, savedOf, moneyText, cleanDays, rateOf, isWeekly, freqLabel,
+  sleepOf, challengeOf } from './habits.js';
 import { findTask, STATUS, CATEGORY_ICON, REPEATS } from './tasks.js';
 import { findGoal, GOAL_SUGGESTIONS, currentOf } from './goals.js';
 import { fmtAmount } from './views/metas.js';
@@ -36,7 +37,7 @@ export function renderSheet() {
   const enter = sheet.fresh ? ' enter' : '';
   sheet.fresh = false;
   document.body.classList.add('has-sheet');
-  const body = { habit: habitSheet, choice: choiceSheet, sleep: sleepSheet, day: daySheet, pause: pauseSheet, task: taskSheet, goal: goalSheet, 'goal-add': goalAddSheet, new: newSheet, more: moreSheet, settings: settingsSheet, login: loginSheet, password: passwordSheet, activate: activateSheet, share: shareSheet, invite: inviteSheet }[sheet.type]();
+  const body = { habit: habitSheet, choice: choiceSheet, sleep: sleepSheet, day: daySheet, pause: pauseSheet, detail: detailSheet, search: searchSheet, task: taskSheet, goal: goalSheet, 'goal-add': goalAddSheet, new: newSheet, more: moreSheet, settings: settingsSheet, login: loginSheet, password: passwordSheet, activate: activateSheet, share: shareSheet, invite: inviteSheet }[sheet.type]();
   root.innerHTML = `
     <div class="backdrop${enter}" data-action="close-sheet"></div>
     <div class="sheet${enter} sheet-${sheet.type}" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
@@ -82,11 +83,19 @@ function habitSheet() {
         <input class="input unit-input" data-bind="unit" maxlength="16" placeholder="vasos, páginas…" value="${esc(d.unit || '')}">
       </div>
       <p class="hint">Cada toque suma 1 y puedes pasarte de la meta.${/vaso/i.test(d.unit || '') ? ` ${d.target} vasos ≈ ${litersText(d.target)} (vaso de 250 ml).` : ''}</p>`) : ''}
+    ${d.kind === 'counter' && pushStatus() !== 'nocloud' ? field('Recordarme durante el día', `<div class="chips">${[[0, 'No'], [1, 'Cada hora'], [2, 'Cada 2 h'], [3, 'Cada 3 h']].map(([n, t]) => `<button class="chip${(d.every || 0) === n ? ' is-on' : ''}" data-action="habit-every" data-v="${n}">${t}</button>`).join('')}</div>
+      ${d.every ? `<div class="two-fields" style="margin-top:10px">${field('Desde', `<input class="input" type="time" data-bind="everyFrom" value="${esc(d.everyFrom)}">`)}${field('Hasta', `<input class="input" type="time" data-bind="everyTo" value="${esc(d.everyTo)}">`)}</div>
+      <p class="hint">Te avisamos mientras no llegues a tu meta. Desde el aviso sumas +1 sin abrir la app.</p>` : ''}`) : ''}
     ${d.kind === 'choice' ? field('Opciones', `<div class="choice-edit">${CHOICE_VALUES.map((v, i) => `
       <label class="choice-edit-row"><i class="tone-dot ${TONE_CLASS[v]}"></i><input class="input" data-bind-label="${i}" maxlength="28" placeholder="${CHOICE_DEFAULT[i]}" value="${esc(d.labels[i] || '')}"></label>`).join('')}</div>
       <p class="hint">Solo la verde suma a tu racha. Las otras quedan en tu resumen.</p>`) : ''}
     ${d.kind === 'quit' ? field('¿Desde cuándo no lo haces?', `<input class="input" type="date" data-bind="since" max="${keyOf(today())}" value="${esc(d.since || keyOf(today()))}">
       <p class="hint">Cada día sin recaer suma a tu racha. Si recaes, lo marcas y vuelves a empezar (tu récord queda guardado).</p>`) : ''}
+    ${d.kind === 'quit' ? field('¿Cuánto gastabas al día?', `<div class="money-row">
+        <input class="input cur-input" data-bind="currency" maxlength="4" aria-label="Moneda" value="${esc(d.currency || 'S/')}">
+        <input class="input" type="number" inputmode="decimal" min="0" step="0.5" data-bind="cost" placeholder="Ej. 5" value="${d.cost || ''}">
+      </div>
+      <p class="hint">Te mostramos cuánto llevas ahorrado por no hacerlo.</p>`, 'opcional') : ''}
     ${d.kind === 'sleep' ? field('Meta de sueño', `<div class="stepper-row">
         <div class="stepper"><button data-action="habit-sleepgoal" data-v="-0.5" aria-label="Menos">${icon('minus')}</button><b>${String(d.sleepGoal).replace('.', ',')}</b><button data-action="habit-sleepgoal" data-v="0.5" aria-label="Más">${icon('plus')}</button></div>
         <span>horas por noche</span></div>`) : ''}
@@ -122,8 +131,10 @@ export function openHabit(id) {
     id: h?.id,
     draft: h
       ? { emoji: h.emoji, name: h.name, days: [...h.days], time: h.time || '', freq: h.freq || 'days', perWeek: h.perWeek || 3, target: h.target || 1, unit: h.unit || '', remind: h.remind !== false,
-        kind: kindOf(h), labels: [0, 1, 2].map((i) => (h.labels || [])[i] || ''), sleepGoal: h.sleepGoal || 8, since: h.createdAt, challenge: h.challenge?.days || 0 }
-      : { emoji: '💧', name: '', days: [...ALL_DAYS], time: '', freq: 'days', perWeek: 3, target: 1, unit: '', remind: true, kind: 'check', labels: ['', '', ''], sleepGoal: 8, since: '', challenge: 0 },
+        kind: kindOf(h), labels: [0, 1, 2].map((i) => (h.labels || [])[i] || ''), sleepGoal: h.sleepGoal || 8, since: h.createdAt, challenge: h.challenge?.days || 0,
+        every: h.every || 0, everyFrom: h.everyFrom || '08:00', everyTo: h.everyTo || '20:00', cost: h.cost || '', currency: h.currency || 'S/' }
+      : { emoji: '💧', name: '', days: [...ALL_DAYS], time: '', freq: 'days', perWeek: 3, target: 1, unit: '', remind: true, kind: 'check', labels: ['', '', ''], sleepGoal: 8, since: '', challenge: 0,
+        every: 0, everyFrom: '08:00', everyTo: '20:00', cost: '', currency: 'S/' },
   });
 }
 
@@ -142,6 +153,7 @@ function choiceSheet() {
         <i class="tone-dot ${TONE_CLASS[v]}"></i><span>${esc(labels[i])}</span>${s === v ? icon('check') : ''}
       </button>`).join('')}</div>
     <p class="hint">${s && at ? `Registrado a las ${fmtTime(at)}.` : 'Se guarda la hora en que lo registras.'}</p>
+    ${noteField(h, keyOf(t))}
     ${s && s !== 'skip' ? `<div class="sheet-actions"><button class="link-danger" data-action="choice-clear">${icon('x')} Quitar registro</button></div>` : ''}`;
 }
 
@@ -173,7 +185,7 @@ function daySheet() {
       <div class="stepper"><button data-action="day-count" data-v="-1" aria-label="Menos">${icon('minus')}</button><b>${n}</b><button data-action="day-count" data-v="1" aria-label="Más">${icon('plus')}</button></div>
       <span>de ${targetOf(h)} ${esc(h.unit || 'veces')}${/vaso/i.test(h.unit || '') && n ? ` · ${litersText(n)}` : ''}</span></div>`;
   } else if (isQuit(h)) {
-    body = `<p class="quit-count"><b>${streakOf(h)}</b> ${streakOf(h) === 1 ? 'día' : 'días'} limpio · récord ${bestOf(h)}</p>
+    body = `<p class="quit-count"><b>${streakOf(h)}</b> ${streakOf(h) === 1 ? 'día' : 'días'} limpio · récord ${bestOf(h)}${savedOf(h) ? ` · ahorraste ${moneyText(h, savedOf(h))}` : ''}</p>
       <div class="choice-opts">${opt('done', '<i class="tone-dot good"></i>', 'Limpio ese día').replace('data-v="done"', 'data-v=""')}${opt('none', '<i class="tone-dot none"></i>', 'Recaí')}</div>
       <p class="hint">Si recaes no pasa nada: la racha vuelve a empezar y tu récord queda guardado.</p>`;
   } else if (isChoice(h)) {
@@ -188,9 +200,120 @@ function daySheet() {
     ${dayNav(h, sheet.day, 'day-move')}
     ${body}
     ${at ? `<p class="hint">Registrado a las ${fmtTime(at)}.</p>` : ''}
+    ${isScheduled(h, d) ? noteField(h, sheet.day) : ''}
     ${s && !isCounter(h) && !isQuit(h) ? `<div class="sheet-actions"><button class="link-danger" data-action="day-set" data-v="">${icon('x')} Quitar registro</button></div>` : ''}`;
 }
 const cap1 = (x) => x[0].toUpperCase() + x.slice(1);
+
+// Nota corta del día: "viaje", "me dolía la cabeza"… (se guarda sola).
+const noteField = (h, k) => `<input class="input note-input" data-note-h="${k}|${h.id}" maxlength="120" placeholder="Nota del día (opcional): viaje, me dolía la cabeza…" value="${esc(noteOf(h, fromKey(k)))}">`;
+
+/* ---------- Ficha del hábito ---------- */
+
+const avgClock = (list) => {
+  if (!list.length) return '';
+  const m = Math.round(list.reduce((a, t) => { const [x, y] = t.split(':').map(Number); return a + x * 60 + y; }, 0) / list.length);
+  return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+};
+
+function detailSheet() {
+  const h = findHabit(sheet.id);
+  const t = today();
+  // Hora habitual, mejor día de la semana y mejor mes (últimos 12 meses).
+  const times = [];
+  const wd = Array.from({ length: 7 }, () => [0, 0]);
+  const months = new Map();
+  let total = 0;
+  for (let i = 0; i < 365; i++) {
+    const d = addDays(t, -i);
+    if (!isScheduled(h, d)) continue;
+    const s = statusOf(h, d);
+    if (s === 'skip' || (i === 0 && !s)) continue;
+    const ok = s === 'done';
+    if (ok) total++;
+    if (i < 90 && timeOf(h, d)) times.push(timeOf(h, d));
+    if (i < 90) { wd[d.getDay()][1]++; if (ok) wd[d.getDay()][0]++; }
+    const mk = `${d.getFullYear()}-${d.getMonth()}`;
+    const m = months.get(mk) || [0, 0, d];
+    m[1]++; if (ok) m[0]++;
+    months.set(mk, m);
+  }
+  const bestWd = WEEK_ORDER.map((i) => ({ i, p: wd[i][1] >= 2 ? wd[i][0] / wd[i][1] : -1 })).sort((a, b) => b.p - a.p)[0];
+  const bestMonth = [...months.values()].filter((m) => m[1] >= 7).map((m) => ({ p: m[0] / m[1], d: m[2] })).sort((a, b) => b.p - a.p)[0];
+  const usual = avgClock(times);
+  const r30 = rateOf(h, 30);
+  const r90 = rateOf(h, 90);
+  const notes = notesOf(h).slice(0, 8);
+  const quit = isQuit(h);
+  const saved = savedOf(h);
+  const ch = challengeOf(h);
+  const kpi = (v, l) => `<div><b>${v}</b><span>${l}</span></div>`;
+  let sleepAvg = '';
+  if (isSleep(h)) {
+    const mins = [];
+    for (let i = 0; i < 30; i++) { const m = sleepMinutes(sleepOf(addDays(t, -i))); if (m !== null) mins.push(m); }
+    if (mins.length) sleepAvg = fmtDuration(Math.round(mins.reduce((a, b) => a + b, 0) / mins.length));
+  }
+  const facts = [
+    usual && !quit ? `${icon('clock')} Sueles hacerlo a las <b>${fmtTime(usual)}</b>` : '',
+    sleepAvg ? `${icon('moon')} Duermes <b>${sleepAvg}</b> en promedio (30 días)` : '',
+    bestWd && bestWd.p > 0 && !quit ? `${icon('calendar')} Tu mejor día: <b>${DAY_LONG[bestWd.i]}</b> (${Math.round(bestWd.p * 100)}%)` : '',
+    bestMonth && bestMonth.p > 0 ? `${icon('trophy')} Tu mejor mes: <b>${MONTHS[bestMonth.d.getMonth()]}</b> (${Math.round(bestMonth.p * 100)}%)` : '',
+    saved ? `${icon('gift')} Llevas ahorrado <b>${moneyText(h, saved)}</b>` : '',
+    ch ? `${icon('target')} Reto: <b>${ch.done}/${ch.days}</b>${ch.complete ? ' 🏅' : ''}` : '',
+  ].filter(Boolean);
+  return `
+    <h2 id="sheet-title">${h.emoji} ${esc(h.name)}. <span>${esc(freqLabel(h))}</span></h2>
+    <div class="detail-kpis">
+      ${kpi(streakOf(h), quit ? 'Días limpio' : isWeekly(h) ? 'Semanas' : 'Racha')}
+      ${kpi(bestOf(h), 'Récord')}
+      ${kpi(quit ? cleanDays(h) : total, quit ? 'Días sin hacerlo' : 'Veces cumplido')}
+      ${kpi(r30 === null ? '—' : `${r30}%`, '30 días')}
+      ${kpi(r90 === null ? '—' : `${r90}%`, '90 días')}
+    </div>
+    ${facts.length ? `<ul class="detail-facts">${facts.map((f) => `<li>${f}</li>`).join('')}</ul>` : ''}
+    ${field('Notas', notes.length ? `<div class="detail-notes">${notes.map(([k, n]) => `<button class="detail-note" data-action="day-edit" data-id="${h.id}" data-date="${k}"><b>${fmtDay(k)}</b><span>${esc(n)}</span></button>`).join('')}</div>`
+      : '<p class="hint">Cuando anotes algo en un día (viaje, te sentías mal…), aparece aquí.</p>')}
+    <div class="sheet-actions">
+      <button class="pill" data-action="edit-habit" data-id="${h.id}">${icon('pencil')} Editar hábito</button>
+      <button class="pill ghost" data-action="share-habit" data-id="${h.id}">${icon('share')} Compartir mi racha</button>
+    </div>`;
+}
+
+/* ---------- Buscar ---------- */
+
+const norm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+function searchSheet() {
+  return `
+    <h2 id="sheet-title">Buscar</h2>
+    <div class="search-box">${icon('search')}<input id="f-search" class="input" data-search type="search" placeholder="Tareas, hábitos, metas, notas…" autocomplete="off" value="${esc(sheet.q || '')}"></div>
+    <div id="search-results">${searchResults(sheet.q)}</div>`;
+}
+
+export function searchResults(q) {
+  const n = norm(q).trim();
+  if (n.length < 2) return '<p class="hint">Escribe al menos 2 letras.</p>';
+  const has = (x) => norm(x).includes(n);
+  const row = (action, attrs, lead, title, sub) => `<button class="search-row" data-action="${action}" ${attrs}><span class="search-lead">${lead}</span><span class="search-body"><b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span></button>`;
+  const cut = (x) => { const s = String(x); const i = norm(s).indexOf(n); return i < 0 ? s.slice(0, 80) : `${i > 30 ? '…' : ''}${s.slice(Math.max(0, i - 30), i + 60)}`; };
+  const groups = [];
+  const habits = state.habits.filter((h) => has(h.name));
+  if (habits.length) groups.push(['Hábitos', habits.slice(0, 8).map((h) => row('habit-detail', `data-id="${h.id}"`, h.emoji, h.name, h.archivedAt ? 'Archivado' : freqLabel(h)))]);
+  const tasks = state.tasks.filter((t) => has(t.title) || (t.subtasks || []).some((s) => has(s.title)));
+  if (tasks.length) groups.push(['Tareas', tasks.slice(0, 8).map((t) => row('edit-task', `data-id="${t.id}"`, icon(t.status === 'done' ? 'check' : 'tasks'), t.title, `${t.date ? fmtDay(t.date) : 'Sin fecha'}${t.status === 'done' ? ' · hecha' : ''}`))]);
+  const goals = state.goals.filter((g) => has(g.title));
+  if (goals.length) groups.push(['Metas', goals.slice(0, 8).map((g) => row('edit-goal', `data-id="${g.id}"`, g.emoji || icon('target'), g.title, ''))]);
+  const journal = Object.entries(state.journal).filter(([, e]) => has(e.text) || has(e.note)).sort((a, b) => b[0].localeCompare(a[0]));
+  const hNotes = Object.entries(state.notes || {}).flatMap(([k, byId]) => Object.entries(byId).filter(([, t]) => has(t)).map(([id, t]) => [k, id, t]));
+  const notes = [
+    ...journal.slice(0, 8).map(([k, e]) => row('search-diary', `data-date="${k}"`, icon('book'), fmtDay(k), cut(has(e.text) ? e.text : e.note))),
+    ...hNotes.slice(0, 8).map(([k, id, t]) => { const h = findHabit(id); return h ? row('day-edit', `data-id="${id}" data-date="${k}"`, h.emoji, `${h.name} · ${fmtDay(k)}`, t) : ''; }),
+  ].filter(Boolean);
+  if (notes.length) groups.push(['Notas y diario', notes]);
+  if (!groups.length) return `<p class="hint">No encontramos nada con "${esc(q)}".</p>`;
+  return groups.map(([t, rows]) => `<p class="label"><span>${t}</span><span>${rows.length}</span></p><div class="search-list">${rows.join('')}</div>`).join('');
+}
 
 /* ---------- Pausa: vacaciones / enfermo ---------- */
 
@@ -452,9 +575,9 @@ export const inviteText = (link) => `Estoy usando atlas para mis hábitos, tarea
 function shareSheet() {
   const canNative = !!(navigator.canShare && navigator.share);
   return `
-    <h2 id="sheet-title">Comparte tu racha. <span>Inspira a otros.</span></h2>
+    <h2 id="sheet-title">${sheet.week ? 'Comparte tu semana.' : 'Comparte tu racha.'} <span>Inspira a otros.</span></h2>
     <p class="summary">Súbela a tus historias de Instagram o envíala por WhatsApp.</p>
-    <div class="share-preview">${sheet.url ? `<img src="${sheet.url}" alt="Imagen de tu racha">` : '<span class="auth-spin"></span>'}</div>
+    <div class="share-preview">${sheet.url ? `<img src="${sheet.url}" alt="${sheet.week ? 'Imagen de tu semana' : 'Imagen de tu racha'}">` : '<span class="auth-spin"></span>'}</div>
     <div class="sheet-actions">
       ${canNative ? `<button class="pill" data-action="share-native" ${sheet.url ? '' : 'disabled'}>${icon('share')} Compartir</button>` : ''}
       <div class="stack">
@@ -593,6 +716,7 @@ function moreSheet() {
   return `
     <h2 id="sheet-title">Más</h2>
     ${levelCard()}
+    <button class="more-item row" data-action="search">${icon('search')}<span>Buscar tareas, hábitos y notas</span></button>
     <div class="more-grid quad">
       ${item('planner', 'planner', 'Planner')}
       ${item('metas', 'target', 'Metas')}

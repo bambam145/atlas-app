@@ -4,7 +4,7 @@ import { icon } from '../icons.js';
 import { today, keyOf, addDays, mondayOf, esc, fmtTime, pad, toMinutes, MONTHS } from '../util.js';
 import {
   isScheduled, statusOf, isWeekly, isCounter, isChoice, isSleep, isQuit, countOf, targetOf, timeOf, choiceLabels, CHOICE_VALUES,
-  sleepMinutes, sleepGoalOf, fmtDuration, isGlasses, litersText, perWeekOf, dayStats, isPerfectDay, byTime,
+  sleepMinutes, sleepGoalOf, fmtDuration, isGlasses, litersText, perWeekOf, dayStats, isPerfectDay, byTime, moneyText,
 } from '../habits.js';
 import { label } from '../ui.js';
 
@@ -55,7 +55,7 @@ function bar(parts, total) {
   return `<span class="sum-bar">${parts.filter(([n]) => n > 0).map(([n, cls]) => `<i class="${cls}" style="width:${(n / total) * 100}%"></i>`).join('')}</span>`;
 }
 
-function habitSummary(h, days) {
+export function habitSummary(h, days) {
   const ds = daysFor(h, days);
   const times = ds.map((d) => timeOf(h, d)).filter(Boolean);
   const avgT = avgClock(times);
@@ -78,7 +78,8 @@ function habitSummary(h, days) {
   }
   if (isQuit(h)) {
     const slips = ds.filter((d) => statusOf(h, d) === 'none').length;
-    return { big: `${ds.length - slips}/${ds.length}`, unit: 'días limpio', bar: bar([[ds.length - slips, 'good'], [slips, 'none']], ds.length), text: slips ? `${slips} ${slips === 1 ? 'recaída' : 'recaídas'}` : 'Sin recaídas 💪' };
+    const money = h.cost > 0 ? ` · ahorraste ${moneyText(h, (ds.length - slips) * h.cost)} en este periodo` : '';
+    return { big: `${ds.length - slips}/${ds.length}`, unit: 'días limpio', bar: bar([[ds.length - slips, 'good'], [slips, 'none']], ds.length), text: `${slips ? `${slips} ${slips === 1 ? 'recaída' : 'recaídas'}` : 'Sin recaídas 💪'}${money}` };
   }
   if (isChoice(h)) {
     const labels = choiceLabels(h);
@@ -189,6 +190,7 @@ export function renderSummary() {
     <section class="panel summary">
       <div class="sum-head">
         ${label('Resumen')}
+        <button class="icon-btn" data-action="share-week" aria-label="Compartir mi semana" data-tip="Compartir mi semana">${icon('share')}</button>
         <div class="seg">
           <button class="seg-btn${p.mode === 'semana' ? ' is-on' : ''}" data-action="sum-mode" data-v="semana">Semana</button>
           <button class="seg-btn${p.mode === 'mes' ? ' is-on' : ''}" data-action="sum-mode" data-v="mes">Mes</button>

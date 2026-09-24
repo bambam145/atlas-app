@@ -6,7 +6,7 @@ const fmtShort = (k) => { const d = fromKey(k); return `${d.getDate()} ${MONTHS[
 import {
   isScheduled, statusOf, streakOf, bestOf, rateOf, skipsThisWeek, freqLabel, byTime, SKIPS_PER_WEEK,
   isCounter, isWeekly, countOf, targetOf, weekCount, perWeekOf, isChoice, isSleep, choiceLabelOf, sleepOf, sleepMinutes, fmtDuration,
-  isQuit, challengeOf, CHALLENGES, HABIT_SUGGESTIONS, activePause, activeHabits,
+  isQuit, challengeOf, CHALLENGES, HABIT_SUGGESTIONS, activePause, activeHabits, habitsInOrder, savedOf, moneyText,
 } from '../habits.js';
 import { pageHead, emptyState, label } from '../ui.js';
 
@@ -100,6 +100,7 @@ function cardHtml(h) {
     : '';
   const shareBtn = `<button class="pill ghost small" data-action="share-habit" data-id="${h.id}" aria-label="Compartir mi racha" data-tip="Compartir mi racha">${icon('share')}</button>`;
   const unitLabel = weekly ? 'Semanas' : isQuit(h) ? 'Días limpio' : 'Racha';
+  const saved = savedOf(h);
   const ch = challengeOf(h);
   const reto = ch ? `<div class="reto${ch.complete ? ' is-done' : ''}">
       <div class="reto-top"><span>${ch.complete ? '🏅 Reto cumplido' : `${icon('target')} Reto de ${ch.days} días`}</span><b>${ch.done}/${ch.days}</b>
@@ -111,7 +112,7 @@ function cardHtml(h) {
     <article class="card">
       <header class="card-head">
         <span class="item-emoji" aria-hidden="true">${h.emoji}</span>
-        <div><h3>${esc(h.name)}</h3><p>${icon('repeat')} ${esc(freqLabel(h))}${h.time ? ` · ${fmtTime(h.time)}` : ''}</p></div>
+        <div class="card-name" data-action="habit-detail" data-id="${h.id}" role="button" tabindex="0" aria-label="Ver ficha de ${esc(h.name)}"><h3>${esc(h.name)}</h3><p>${icon('repeat')} ${esc(freqLabel(h))}${h.time ? ` · ${fmtTime(h.time)}` : ''}</p></div>
         <button class="icon-btn" data-action="edit-habit" data-id="${h.id}" aria-label="Editar ${esc(h.name)}">${icon('more')}</button>
       </header>
       <div class="stats">
@@ -119,6 +120,7 @@ function cardHtml(h) {
         <div class="stat"><b>${bestOf(h)}</b><span>${icon('trophy')} Récord</span></div>
         <div class="stat"><b>${rate === null ? '—' : rate + '%'}</b><span>${icon('chart')} 30 días</span></div>
       </div>
+      ${saved ? `<p class="week-goal">${icon('gift')} Llevas ahorrado <b>${moneyText(h, saved)}</b></p>` : ''}
       ${reto}
       ${weekly ? `<p class="week-goal">${icon('target')} Esta semana: <b>${weekCount(h, t)} de ${perWeekOf(h)}</b>${weekCount(h, t) >= perWeekOf(h) ? ' · ¡meta cumplida! 🎉' : ''}</p>` : ''}
       ${gridHtml(h)}
@@ -146,7 +148,19 @@ export function renderHabitos() {
           <button class="pill ghost small" data-action="unarchive-habit" data-id="${h.id}">Reactivar</button>
           <button class="icon-btn sm" data-action="edit-habit" data-id="${h.id}" aria-label="Editar ${esc(h.name)}">${icon('more')}</button></div>`).join('')}</div>` : ''}
     </div>` : '';
-  return head + retosHtml() + `<div class="cards">${activeHabits().sort(byTime).map(cardHtml).join('')}</div>${arch}`;
+  const list = habitsInOrder(activeHabits());
+  const tools = list.length > 1 ? `<div class="habit-tools">
+      <button class="text-btn" data-action="habit-sort">${icon(state.ui.sorting ? 'check' : 'arrows')} ${state.ui.sorting ? 'Listo' : 'Ordenar'}</button>
+      ${state.ui.sorting && state.habitOrder ? `<button class="text-btn" data-action="habit-order-reset">Volver a ordenar por hora</button>` : ''}
+    </div>` : '';
+  if (state.ui.sorting) {
+    return head + tools + `<div class="sort-list">${list.map((h, i) => `
+      <div class="sort-row"><span class="item-emoji sm">${h.emoji}</span><span class="sort-name">${esc(h.name)}</span>
+        <button class="icon-btn boxed" data-action="habit-move" data-id="${h.id}" data-v="-1" aria-label="Subir" ${i === 0 ? 'disabled' : ''}>${icon('up')}</button>
+        <button class="icon-btn boxed" data-action="habit-move" data-id="${h.id}" data-v="1" aria-label="Bajar" ${i === list.length - 1 ? 'disabled' : ''}>${icon('down')}</button>
+      </div>`).join('')}</div>`;
+  }
+  return head + retosHtml() + tools + `<div class="cards">${list.map(cardHtml).join('')}</div>${arch}`;
 }
 
 // Retos listos para empezar (los que ya están en curso no se repiten).

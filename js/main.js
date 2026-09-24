@@ -5,12 +5,12 @@ import { today, keyOf, fromKey, addDays, fromMinutes, uid, fmtDay, fmtTime, pad,
 import { findHabit, isScheduled, statusOf, setStatus, streakOf, skipsThisWeek, SKIPS_PER_WEEK, HABIT_SUGGESTIONS, momentTime,
   isCounter, isWeekly, targetOf, countOf, setCount, weekCount, perWeekOf, habitFromSuggestion,
   isChoice, isSleep, choiceLabels, CHOICE_VALUES, setSleep, sleepMinutes, sleepGoalOf, fmtDuration, isGlasses, litersText, migrateHabits,
-  isQuit, challengeOf, CHALLENGES, activePause, PAUSE_REASONS } from './habits.js';
+  isQuit, challengeOf, CHALLENGES, activePause, PAUSE_REASONS, setNote, byTime } from './habits.js';
 import { findTask, newTask, setTaskStatus, parseTask, QUADRANTS, ensureRecurrence, repeatLabel } from './tasks.js';
 import { findGoal, GOAL_SUGGESTIONS } from './goals.js';
 import { checkRewards } from './xp.js';
 import { toast, toastQueue } from './ui.js';
-import { sheet, openSheet, closeSheet, renderSheet, openHabit, openTask, openGoal, inviteText, openSleep } from './sheets.js';
+import { sheet, openSheet, closeSheet, renderSheet, openHabit, openTask, openGoal, inviteText, openSleep, searchResults } from './sheets.js';
 import { renderHoy, levelCard, cloudBannerVisible } from './views/hoy.js';
 import { renderTareas } from './views/tareas.js';
 import { renderPlanner, plannerMode, plannerAnchor, START_H, HOUR_PX } from './views/planner.js';
@@ -26,7 +26,7 @@ import { cloud, cloudEnabled, initCloud, onCloudChange, sendCode, verifyCode, si
 import { auth, resetAuth, renderAuth, renderSplash, mountAuthFx, passStrength, STRENGTH_LABEL } from './views/auth.js';
 import { ob, obSteps, obMoment, renderOnboarding } from './views/onboarding.js';
 import { pw, renderPaywall } from './views/paywall.js';
-import { renderStreakImage, shareNative, shareText, APP_URL } from './share.js';
+import { renderStreakImage, renderWeekImage, shareNative, shareText, weekShareText, APP_URL } from './share.js';
 import { initPixel, trackRegistration, trackPurchase } from './pixel.js';
 import { enablePush, disablePush, forgetPush, refreshPush, reminders } from './push.js';
 import { initInstall, promptInstall, canPromptInstall, installPlatform } from './install.js';
@@ -56,6 +56,8 @@ let view = 'hoy';
 {
   const v = new URLSearchParams(location.search).get('v');
   if (v && VIEWS[v]) { view = v; history.replaceState(null, '', location.pathname); }
+  // Desde la página de ventas: abrir directo en "Crear cuenta".
+  if (new URLSearchParams(location.search).has('registro')) { resetAuth('signup'); history.replaceState(null, '', location.pathname); }
 }
 let authShownAt = 0;
 let lastView = null;
@@ -297,6 +299,11 @@ function saveHabit() {
     labels: d.kind === 'choice' ? d.labels.map((x) => (x || '').trim()) : undefined,
     sleepGoal: d.kind === 'sleep' ? d.sleepGoal : undefined,
     challenge,
+    every: d.kind === 'counter' && d.every ? d.every : undefined,
+    everyFrom: d.kind === 'counter' && d.every ? d.everyFrom || '08:00' : undefined,
+    everyTo: d.kind === 'counter' && d.every ? d.everyTo || '20:00' : undefined,
+    cost: quit && parseFloat(d.cost) > 0 ? parseFloat(d.cost) : undefined,
+    currency: quit && parseFloat(d.cost) > 0 ? (d.currency || 'S/').trim() : undefined,
   };
   // Dejar algo: todos los días, sin hora ni recordatorio; empieza desde el día que lo dejaste.
   if (quit) Object.assign(fields, { days: [...ALL_DAYS], freq: 'days', time: '', remind: false });
@@ -451,17 +458,17 @@ const actions = {
     renderSheet();
   },
   'share-native': async () => {
-    const h = findHabit(sheet.id);
-    if (sheet.blob && !(await shareNative(sheet.blob, h, shareLink()))) toast('Tu dispositivo no permite compartir directo: usa Descargar');
+    const text = sheet.week ? weekShareText(shareLink()) : shareText(findHabit(sheet.id), shareLink());
+    if (sheet.blob && !(await shareNative(sheet.blob, text, sheet.week ? 'Mi semana en atlas' : 'Mi racha en atlas'))) toast('Tu dispositivo no permite compartir directo: usa Descargar');
   },
   'share-download': () => {
     const a = document.createElement('a');
-    a.href = sheet.url; a.download = `atlas-racha-${keyOf(today())}.png`; a.click();
+    a.href = sheet.url; a.download = `atlas-${sheet.week ? 'semana' : 'racha'}-${keyOf(today())}.png`; a.click();
     toast('✓ Imagen descargada · súbela a tus historias');
   },
   'share-copy': async () => {
-    const h = findHabit(sheet.id);
-    try { await navigator.clipboard.writeText(shareText(h, shareLink())); toast('✓ Texto copiado'); } catch { toast('No se pudo copiar'); }
+    const text = sheet.week ? weekShareText(shareLink()) : shareText(findHabit(sheet.id), shareLink());
+    try { await navigator.clipboard.writeText(text); toast('✓ Texto copiado'); } catch { toast('No se pudo copiar'); }
   },
 
   // Licencia y códigos
@@ -483,6 +490,7 @@ const actions = {
   },
   'ob-moment': (el) => { ob.times[+el.dataset.i] = el.dataset.v; render(); },
   'ob-finish': () => finishOnboarding(),
+  'ob-reto': (el) => { ob.reto = +el.dataset.v; render(); },
   'save-name': () => {
     const v = (document.getElementById('f-profile-name')?.value || '').trim();
     if (!v) { toast('Escribe tu nombre'); return; }
@@ -635,6 +643,40 @@ const actions = {
     if (p.from === tk) state.pauses = state.pauses.filter((x) => x !== p);
     else p.to = keyOf(addDays(today(), -1));
     save(); if (sheet) closeSheet(); toast('¡Bienvenido de vuelta! 💪'); render();
+  },
+  'habit-every': (el) => { sheet.draft.every = +el.dataset.v; renderSheet(); },
+  'habit-detail': (el) => openSheet('detail', { id: el.dataset.id }),
+  // Buscar
+  search: () => { openSheet('search', { q: '' }); setTimeout(() => document.getElementById('f-search')?.focus(), 320); },
+  'search-diary': (el) => { setDiaryDate(el.dataset.date); go('diario'); },
+  // Ordenar hábitos a mano
+  'habit-sort': () => {
+    if (!state.ui.sorting && !state.habitOrder) {
+      // Primera vez: parte del orden por hora que ya ves.
+      state.habits.sort((a, b) => Number(!!a.archivedAt) - Number(!!b.archivedAt) || byTime(a, b));
+      state.habitOrder = true;
+      save();
+    }
+    state.ui.sorting = !state.ui.sorting; render();
+  },
+  'habit-move': (el) => {
+    const list = state.habits;
+    const i = list.findIndex((h) => h.id === el.dataset.id);
+    const dir = +el.dataset.v;
+    let j = i + dir;
+    while (list[j] && list[j].archivedAt) j += dir;
+    if (i < 0 || !list[j]) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    save(); render();
+  },
+  'habit-order-reset': () => { state.habitOrder = false; state.ui.sorting = false; save(); render(); toast('Ordenados por hora otra vez'); },
+  // Compartir la semana
+  'share-week': async () => {
+    openSheet('share', { week: true, url: '', blob: null });
+    const blob = await renderWeekImage();
+    if (sheet?.type !== 'share') return;
+    Object.assign(sheet, { blob, url: URL.createObjectURL(blob) });
+    renderSheet();
   },
   'habit-sleepgoal': (el) => { sheet.draft.sleepGoal = Math.min(12, Math.max(4, sheet.draft.sleepGoal + +el.dataset.v)); renderSheet(); },
   'choice-pick': (el) => pickChoice(sheet.id, el.dataset.v),
@@ -838,6 +880,11 @@ function finishOnboarding() {
       state.habits.push(habitFromSuggestion(i, momentTime(obMoment(i)), uid));
     }
   }
+  // Reto de bienvenida (opcional): 21 días con el hábito que elegiste.
+  if (ob.reto >= 0) {
+    const h = state.habits.find((x) => x.name === HABIT_SUGGESTIONS[ob.reto][1]);
+    if (h) h.challenge = { days: 21, start: keyOf(today()) };
+  }
   state.profile = { name: ob.name.trim(), onboarded: true };
   save();
   trackRegistration();
@@ -975,6 +1022,18 @@ document.addEventListener('input', (e) => {
   if (sheet && t.dataset.bind) {
     if (sheet.type === 'goal-add') sheet[t.dataset.bind] = t.value;
     else sheet.draft[t.dataset.bind] = t.value;
+  }
+  if (t.dataset.search !== undefined && sheet?.type === 'search') {
+    sheet.q = t.value;
+    const box = document.getElementById('search-results');
+    if (box) box.innerHTML = searchResults(t.value);
+    return;
+  }
+  if (t.dataset.noteH) {
+    const [k, id] = t.dataset.noteH.split('|');
+    const h = findHabit(id);
+    if (h) { setNote(h, k, t.value); clearTimeout(journalTimer); journalTimer = setTimeout(save, 500); }
+    return;
   }
   if (t.dataset.note) {
     const e = state.journal[t.dataset.note] || (state.journal[t.dataset.note] = { text: '', mood: null });

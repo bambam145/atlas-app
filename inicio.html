@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>atlas · Tu vida. En orden.</title>
+  <meta name="description" content="Hábitos, tareas, metas y diario en una sola app. Registra tus comidas, sueño y agua, deja lo que te hace daño y cumple retos de 21 días. Prueba gratis 7 días.">
+  <meta name="theme-color" content="#000000">
+  <meta property="og:title" content="atlas · Tu vida. En orden.">
+  <meta property="og:description" content="Hábitos, tareas, metas y diario en una sola app. Prueba gratis 7 días.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://bambam145.github.io/atlas-app/inicio.html">
+  <meta property="og:image" content="https://bambam145.github.io/atlas-app/icons/icon-512.png">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #000; --surface: #0c0c0c; --surface-2: #151515; --border: rgba(255,255,255,0.08);
+      --text: #EFEFEF; --text-2: #A3A3A3; --text-3: #7A7A7A; --good: #10B981; --meh: #A29BE0; --none: #454545;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; line-height: 1.5; }
+    a { color: inherit; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+    h1, h2, h3 { margin: 0; font-weight: 400; letter-spacing: -0.04em; }
+    h1 span, h2 span { color: var(--text-3); }
+
+    nav { position: sticky; top: 0; z-index: 10; background: rgba(0,0,0,0.78); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--border); }
+    nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .brand img { width: 30px; height: 30px; border-radius: 8px; }
+    .brand b { font-weight: 400; letter-spacing: 0.32em; font-size: 15px; }
+    .nav-link { font-size: 14px; font-weight: 600; color: var(--text-2); text-decoration: none; }
+    .nav-link:hover { color: var(--text); }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 54px; padding: 0 28px; font: inherit; font-size: 16px; font-weight: 700; color: #000; background: var(--text); border-radius: 99px; text-decoration: none; transition: transform 0.15s, opacity 0.2s; }
+    .btn:hover { opacity: 0.9; }
+    .btn:active { transform: scale(0.97); }
+    .btn svg { width: 18px; height: 18px; }
+    .note { margin-top: 12px; font-size: 13.5px; color: var(--text-3); }
+
+    .hero { padding: 72px 0 40px; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: center; }
+    .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-3); }
+    .hero h1 { margin: 16px 0 18px; font-size: clamp(44px, 7vw, 76px); line-height: 1; }
+    .hero p.lead { margin: 0 0 28px; font-size: 18px; color: var(--text-2); max-width: 520px; }
+
+    /* Celular de muestra */
+    .phone { justify-self: center; width: 300px; padding: 14px; background: #0a0a0a; border: 1px solid rgba(255,255,255,0.12); border-radius: 42px; box-shadow: 0 30px 80px rgba(255,255,255,0.05); }
+    .screen { padding: 22px 14px 18px; background: #000; border-radius: 30px; min-height: 540px; }
+    .screen .date { font-size: 10px; font-weight: 700; letter-spacing: 0.16em; color: var(--text-3); text-transform: uppercase; }
+    .screen .hi { margin: 6px 0 14px; font-size: 22px; letter-spacing: -0.04em; line-height: 1.1; }
+    .screen .hi span { color: var(--text-3); }
+    .bar { height: 3px; background: #1c1c1c; border-radius: 2px; margin-bottom: 16px; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 64%; background: var(--text); }
+    .lbl { margin: 14px 0 8px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.16em; color: var(--text-3); }
+    .row { display: flex; align-items: center; gap: 10px; padding: 10px; margin-bottom: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+    .row .em { width: 30px; height: 30px; display: grid; place-items: center; font-size: 15px; background: var(--surface-2); border-radius: 9px; }
+    .row .t { flex: 1; min-width: 0; }
+    .row b { display: block; font-size: 12.5px; font-weight: 600; }
+    .row small { font-size: 10.5px; color: var(--text-3); }
+    .dot { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #3a3a3a; flex: none; }
+    .dot.good { background: var(--good); border-color: var(--good); }
+    .dot.meh { background: var(--meh); border-color: var(--meh); }
+    .ring { width: 22px; height: 22px; border-radius: 50%; flex: none; background: conic-gradient(var(--text) 75%, #262626 0); display: grid; place-items: center; }
+    .ring::after { content: "6"; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); font-size: 9px; font-weight: 700; display: grid; place-items: center; }
+    .g { color: var(--good); } .m { color: var(--meh); }
+
+    section { padding: 72px 0; border-top: 1px solid var(--border); }
+    section h2 { font-size: clamp(32px, 5vw, 48px); line-height: 1.05; margin-bottom: 14px; }
+    section .sub { color: var(--text-2); font-size: 17px; max-width: 560px; margin: 0 0 36px; }
+
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .card { padding: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; }
+    .card .ic { font-size: 26px; margin-bottom: 14px; }
+    .card h3 { font-size: 20px; margin-bottom: 8px; }
+    .card p { margin: 0; font-size: 14.5px; color: var(--text-2); }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; font-size: 12px; font-weight: 600; color: var(--text-2); background: var(--surface-2); border-radius: 99px; }
+    .chip i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; counter-reset: s; }
+    .step { padding: 24px; border: 1px solid var(--border); border-radius: 20px; }
+    .step::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 34px; height: 34px; margin-bottom: 16px; font-weight: 700; color: #000; background: var(--text); border-radius: 50%; }
+    .step h3 { font-size: 19px; margin-bottom: 6px; }
+    .step p { margin: 0; color: var(--text-2); font-size: 14.5px; }
+
+    .insight { display: flex; gap: 18px; align-items: flex-start; padding: 28px; background: var(--surface); border: 1px solid var(--border); border-radius: 22px; max-width: 720px; }
+    .insight .emo { font-size: 40px; line-height: 1; }
+    .insight p { margin: 0; font-size: 19px; color: var(--text-2); }
+    .insight b { color: var(--text); font-weight: 600; }
+
+    details { border-bottom: 1px solid var(--border); padding: 18px 0; max-width: 760px; }
+    summary { cursor: pointer; font-size: 17px; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+    summary::after { content: "+"; color: var(--text-3); font-weight: 400; font-size: 22px; line-height: 1; }
+    details[open] summary::after { content: "−"; }
+    details p { margin: 10px 0 0; color: var(--text-2); }
+
+    .final { text-align: center; }
+    .final h2 { margin-bottom: 24px; }
+    footer { padding: 32px 0 48px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-3); }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; }
+    footer a { color: var(--text-3); }
+
+    @media (max-width: 860px) {
+      .hero { grid-template-columns: 1fr; padding-top: 44px; text-align: left; }
+      .grid, .steps { grid-template-columns: 1fr; }
+      section { padding: 56px 0; }
+    }
+    @media (max-width: 380px) { .phone { width: 100%; } .btn { width: 100%; } }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="wrap">
+      <a class="brand" href="./inicio.html"><img src="icons/icon-192.png" alt=""><b>ΛTLΛS</b></a>
+      <a class="nav-link" href="./">Entrar</a>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <div class="hero">
+      <div>
+        <span class="eyebrow">Hábitos · Tareas · Metas · Diario</span>
+        <h1>Tu vida. <span>En orden.</span></h1>
+        <p class="lead">atlas te ayuda a comer mejor, dormir mejor y cumplir lo que te propones, un día a la vez. Todo en una sola app, simple y bonita.</p>
+        <a class="btn" href="./?registro">Pruébalo gratis 7 días
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg></a>
+        <p class="note">Sin tarjeta. Funciona en tu celular y en tu computadora.</p>
+      </div>
+
+      <div class="phone" aria-hidden="true">
+        <div class="screen">
+          <div class="date">Jueves, 24 de septiembre</div>
+          <div class="hi">Buenos días, Ana. <span>Un paso a la vez.</span></div>
+          <div class="bar"><i></i></div>
+          <div class="lbl">AGENDA</div>
+          <div class="row"><span class="dot good"></span><span class="em">🍳</span><span class="t"><b>Desayunar sano</b><small class="g">Sano · 7:40 am</small></span></div>
+          <div class="row"><span class="ring"></span><span class="em">💧</span><span class="t"><b>Tomar 8 vasos de agua</b><small>6 de 8 vasos · 1,5 L</small></span></div>
+          <div class="row"><span class="dot meh"></span><span class="em">😴</span><span class="t"><b>Dormir 8 horas</b><small class="m">7 h 15 min</small></span></div>
+          <div class="row"><span class="dot"></span><span class="em">📌</span><span class="t"><b>Llamar a mamá</b><small>3:00 pm · te avisamos</small></span></div>
+          <div class="lbl">DEJANDO</div>
+          <div class="row"><span class="dot good"></span><span class="em">🚭</span><span class="t"><b>No fumar</b><small><span class="g">12 días limpio</span> · ahorraste S/ 60</small></span></div>
+          <div class="lbl">RETO</div>
+          <div class="row"><span class="em">🎯</span><span class="t"><b>21 días desayunando sano</b><small>14 de 21 · ¡vas muy bien!</small></span></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <section>
+    <div class="wrap">
+      <h2>Todo lo que necesitas. <span>Nada que sobre.</span></h2>
+      <p class="sub">Pensado para que registrar tu día tome segundos, no minutos.</p>
+      <div class="grid">
+        <div class="card"><div class="ic">🔥</div><h3>Hábitos con rachas</h3><p>Marca con un toque y mira crecer tu racha. Un calendario de puntos te muestra tu constancia de un vistazo.</p></div>
+        <div class="card"><div class="ic">🥗</div><h3>Comidas, sueño y agua</h3><p>Anota si comiste sano, cuántas horas dormiste y cuánta agua tomaste. Sin culpa: solo la verdad de tu día.</p>
+          <div class="chips"><span class="chip"><i style="background:var(--good)"></i>Sano</span><span class="chip"><i style="background:var(--meh)"></i>No sano</span><span class="chip"><i style="background:var(--none)"></i>No comí</span></div></div>
+        <div class="card"><div class="ic">🚭</div><h3>Deja lo que te hace daño</h3><p>Fumar, azúcar, redes a medianoche… Cuenta tus días limpio y cuánto dinero llevas ahorrado.</p></div>
+        <div class="card"><div class="ic">🎯</div><h3>Retos de 21 días</h3><p>Ponle una meta clara a tu hábito y gana una medalla al cumplirla. 21 días cambian todo.</p></div>
+        <div class="card"><div class="ic">🔔</div><h3>Te avisa a tiempo</h3><p>Recordatorios de tus hábitos y tareas. Responde desde el aviso («Sano», «+1 vaso», «✓ Hecha») sin abrir la app.</p></div>
+        <div class="card"><div class="ic">📊</div><h3>Tu semana en números</h3><p>Cada domingo recibes tu resumen: constancia, sueño promedio, litros de agua y cómo te sentiste.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Descubre qué te hace bien.</h2>
+      <p class="sub">Marca cómo te sientes cada día y atlas conecta los puntos por ti.</p>
+      <div class="insight"><span class="emo">🙂</span><p>Los días que <b>duermes 8 h o más</b>, tu ánimo promedio es <b>Bien</b>. Cuando no, <b>Regular</b>.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Empieza en un minuto.</h2>
+      <p class="sub">Sin configuraciones raras. Te armamos todo según tu día.</p>
+      <div class="steps">
+        <div class="step"><h3>Crea tu cuenta</h3><p>Con tu correo. Tienes 7 días gratis con todo incluido.</p></div>
+        <div class="step"><h3>Elige tus hábitos</h3><p>Toca los que quieras (agua, comer sano, leer…) y nosotros les ponemos hora.</p></div>
+        <div class="step"><h3>Marca tu día</h3><p>Un toque por hábito. Al final de la semana ves cuánto avanzaste.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Preguntas frecuentes</h2>
+      <details><summary>¿Cuánto cuesta?</summary><p>Los primeros 7 días son gratis y con todo incluido, sin poner tarjeta. Después eliges el plan que prefieras para seguir.</p></details>
+      <details><summary>¿Funciona en mi celular?</summary><p>Sí. Funciona en Android, iPhone y computadora. Puedes instalarla en tu pantalla de inicio como cualquier app y tus datos se sincronizan entre tus dispositivos.</p></details>
+      <details><summary>¿Necesito internet?</summary><p>No para usarla: puedes marcar tus hábitos sin conexión y se sincronizan cuando vuelvas a tener internet.</p></details>
+      <details><summary>¿Mis datos están seguros?</summary><p>Tus datos son tuyos. Solo los guardamos para darte el servicio, puedes descargarlos cuando quieras y eliminar tu cuenta desde Ajustes.</p></details>
+      <details><summary>¿Y si me voy de vacaciones o me enfermo?</summary><p>Activas la pausa y tus rachas y retos quedan congelados hasta que vuelvas.</p></details>
+    </div>
+  </section>
+
+  <section class="final">
+    <div class="wrap">
+      <h2>Tu mejor versión <span>empieza hoy.</span></h2>
+      <a class="btn" href="./?registro">Pruébalo gratis 7 días
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg></a>
+      <p class="note">Sin tarjeta · Sin compromiso</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>© 2026 Atlas App · Perú</span>
+      <span><a href="terminos.html">Términos</a> · <a href="privacidad.html">Privacidad</a> · <a href="mailto:atlasapp.soporte@gmail.com">atlasapp.soporte@gmail.com</a></span>
+    </div>
+  </footer>
+</body>
+</html>

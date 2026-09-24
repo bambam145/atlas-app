@@ -2,7 +2,8 @@
 import { icon } from './icons.js';
 import { esc, fmtTime, fmtDay, today, addDays } from './util.js';
 import { statusOf, streakOf, streakText, isCounter, isWeekly, countOf, targetOf, weekCount, perWeekOf,
-  isChoice, isSleep, isQuit, choiceLabelOf, timeOf, isGlasses, litersText, sleepOf, sleepMinutes, fmtDuration, sleepGoalOf, challengeOf, bestOf } from './habits.js';
+  isChoice, isSleep, isQuit, choiceLabelOf, timeOf, isGlasses, litersText, sleepOf, sleepMinutes, fmtDuration, sleepGoalOf, challengeOf, bestOf,
+  savedOf, moneyText } from './habits.js';
 import { taskMeta, CATEGORY_ICON, isOverdue, repeatLabel } from './tasks.js';
 
 export function pageHead({ eyebrow, title, sub = '', right = '' }) {
@@ -44,7 +45,11 @@ function registeredInfo(h, d, s) {
     if (rec?.bed) return `<span>${icon('moon')} Te acostaste ${fmtTime(rec.bed)} · toca al despertar</span>`;
     return `<span>${icon('moon')} Meta ${String(sleepGoalOf(h)).replace('.', ',')} h · toca para registrar</span>`;
   }
-  if (isQuit(h)) return s === 'none' ? `<span class="tone-text none">Recaíste · mañana empiezas de nuevo</span>` : `<span class="tone-text good">Limpio hoy</span><span>Récord ${bestOf(h)}</span>`;
+  if (isQuit(h)) {
+    const saved = savedOf(h);
+    return s === 'none' ? `<span class="tone-text none">Recaíste · mañana empiezas de nuevo</span>`
+      : `<span class="tone-text good">Limpio hoy</span>${saved ? `<span>Ahorraste ${moneyText(h, saved)}</span>` : `<span>Récord ${bestOf(h)}</span>`}`;
+  }
   if (isChoice(h)) return s ? `<span class="tone-text ${TONE[s]}">${esc(choiceLabelOf(h, s))}${when}</span>` : `<span>${icon('repeat')} Toca para registrar</span>`;
   if (s === 'done') return `<span>${icon('check')} Hecho${when}</span>`;
   return `<span>${icon('repeat')} Hábito</span>`;

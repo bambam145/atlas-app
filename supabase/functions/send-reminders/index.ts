@@ -26,6 +26,7 @@ function localNow(tz: string): { day: string; min: number; wd: number } {
 type Habit = {
   id: string; emoji?: string; name: string; days?: number[]; time?: string; createdAt?: string; target?: number; unit?: string;
   freq?: string; remind?: boolean; kind?: string; labels?: string[]; sleepGoal?: number; archivedAt?: string;
+  every?: number; everyFrom?: string; everyTo?: string; // contador: avisar cada N horas entre dos horas
 };
 type Task = { id: string; title: string; date?: string | null; time?: string; status?: string; remind?: boolean };
 type Action = { action: string; title: string };
@@ -159,6 +160,19 @@ Deno.serve(async (req) => {
         const { actions, values } = actionsFor(h);
         const act = actions.length ? { url: QUICK_URL, token: await quickToken(t.user_id, h.id, now.day, tz, values, secrets.cron_secret) } : undefined;
         msgs.push({ key: `h:${h.id}`, title: `${h.emoji || '⏰'} ${h.name}`, body: progressText(h, log[h.id]), tag: `atlas-${h.id}`, actions, act });
+      }
+      // Agua (u otro contador) durante el día: cada N horas mientras no llegues a la meta.
+      for (const h of habits) {
+        if (!h.every || kindOf(h) !== 'counter' || isDone(h, log[h.id])) continue;
+        const from = toMin(h.everyFrom || '08:00');
+        const to = toMin(h.everyTo || '20:00');
+        for (let m = from; m <= to; m += h.every * 60) {
+          const slot = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+          if (slot === h.time || !inWindow(slot)) continue;
+          const { actions, values } = actionsFor(h);
+          const act = { url: QUICK_URL, token: await quickToken(t.user_id, h.id, now.day, tz, values, secrets.cron_secret) };
+          msgs.push({ key: `h:${h.id}:${slot}`, title: `${h.emoji || '💧'} ${h.name}`, body: progressText(h, log[h.id]), tag: `atlas-${h.id}`, actions, act });
+        }
       }
     }
 

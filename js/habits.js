@@ -219,6 +219,35 @@ export function weekMet(h, anyDay) {
   return weekCount(h, anyDay) >= Math.max(0, perWeekOf(h) - paused);
 }
 
+/* ---------- Notas de un día ---------- */
+
+export const noteOf = (h, d) => (state.notes?.[keyOf(d)] || {})[h.id] || '';
+export function setNote(h, k, text) {
+  const all = state.notes || (state.notes = {});
+  const t = (text || '').trim();
+  if (t) (all[k] || (all[k] = {}))[h.id] = t;
+  else if (all[k]) { delete all[k][h.id]; if (!Object.keys(all[k]).length) delete all[k]; }
+}
+// Notas de un hábito, de la más nueva a la más vieja: [[fecha, texto]]
+export const notesOf = (h) => Object.entries(state.notes || {}).filter(([, n]) => n[h.id]).map(([k, n]) => [k, n[h.id]]).sort((a, b) => b[0].localeCompare(a[0]));
+
+/* ---------- Dejar algo: plata ahorrada ---------- */
+
+export function cleanDays(h) {
+  let n = 0;
+  const t = today();
+  for (let d = fromKey(h.createdAt); d <= t; d = addDays(d, 1)) if (statusOf(h, d) === 'done') n++;
+  return n;
+}
+export const moneyText = (h, n) => `${h.currency || 'S/'} ${new Intl.NumberFormat('es', { maximumFractionDigits: 2 }).format(n)}`;
+// Cuánto ahorraste por no hacerlo (solo si pusiste cuánto gastabas al día).
+export const savedOf = (h) => (isQuit(h) && h.cost > 0 ? cleanDays(h) * h.cost : null);
+
+/* ---------- Orden de los hábitos (Hábitos) ---------- */
+
+// Si ordenaste a mano, se respeta tu orden; si no, por hora.
+export const habitsInOrder = (list) => (state.habitOrder ? [...list] : [...list].sort(byTime));
+
 /* ---------- Retos ---------- */
 
 // Progreso del reto: cuántos días lo cumpliste desde que empezó (no hace falta que sean seguidos).

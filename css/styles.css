@@ -1252,6 +1252,46 @@ button.wd:active { transform: scale(0.92); }
 
 .more-grid.quad { grid-template-columns: repeat(2, 1fr); }
 
+/* Ficha del hábito */
+.card-name { cursor: pointer; min-width: 0; }
+.card-name:hover h3 { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--text-4); }
+.detail-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 6px 0 14px; }
+.detail-kpis div { padding: 10px 6px; text-align: center; background: var(--surface-2); border-radius: 12px; min-width: 0; }
+.detail-kpis b { display: block; font-size: 22px; font-weight: 300; letter-spacing: -0.04em; }
+.detail-kpis span { font-size: 10.5px; font-weight: 600; color: var(--text-3); }
+.detail-facts { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.detail-facts li { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-2); }
+.detail-facts .i { width: 16px; height: 16px; flex: none; }
+.detail-facts b { color: var(--text); }
+.detail-notes { display: flex; flex-direction: column; gap: 6px; }
+.detail-note { display: flex; gap: 10px; padding: 10px 12px; text-align: left; font-size: 13.5px; background: var(--surface-2); border: 0; border-radius: 12px; color: var(--text-2); }
+.detail-note b { flex: none; color: var(--text); font-weight: 600; }
+@media (max-width: 480px) { .detail-kpis { grid-template-columns: repeat(3, 1fr); } }
+
+/* Buscar */
+.search-box { position: relative; margin: 4px 0 14px; }
+.search-box .i { position: absolute; left: 14px; top: 50%; width: 18px; height: 18px; transform: translateY(-50%); color: var(--text-3); }
+.search-box .input { padding-left: 42px; }
+.search-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.search-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; text-align: left; background: var(--surface-2); border: 0; border-radius: 12px; color: var(--text); }
+.search-lead { width: 28px; flex: none; display: grid; place-items: center; font-size: 18px; color: var(--text-2); }
+.search-lead .i { width: 18px; height: 18px; }
+.search-body { min-width: 0; display: flex; flex-direction: column; }
+.search-body b { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-body small { font-size: 12.5px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Ordenar hábitos */
+.habit-tools { display: flex; gap: 14px; align-items: center; margin: 0 0 10px; }
+.sort-list { display: flex; flex-direction: column; gap: 8px; }
+.sort-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.sort-name { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Plata ahorrada */
+.money-row { display: flex; gap: 8px; }
+.money-row .cur-input { width: 72px; flex: none; text-align: center; }
+.money-row .input:last-child { flex: 1; min-width: 0; }
+.sum-head .icon-btn { margin-left: auto; }
+
 /* Deshacer */
 .toast.has-undo { display: flex; align-items: center; gap: 14px; pointer-events: auto; padding-right: 8px; }
 .toast-undo { flex: none; padding: 6px 12px; font: inherit; font-size: 13px; color: var(--on-text); background: color-mix(in srgb, var(--on-text) 16%, transparent); border: 0; border-radius: 99px; cursor: pointer; }
