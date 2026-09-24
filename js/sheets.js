@@ -285,7 +285,7 @@ function taskSheet() {
       ${field('Duración', `<select class="input" data-bind="duration">${[15, 30, 45, 60, 90, 120, 180].map((m) => `<option value="${m}"${+d.duration === m ? ' selected' : ''}>${m < 60 ? `${m} min` : `${m / 60} h`}</option>`).join('')}</select>`)}
     </div>
     ${d.time && d.date && pushStatus() !== 'nocloud' ? `<button class="toggle-row" data-action="task-remind" aria-pressed="${d.remind}"><span>${icon('bell')} Avisarme a esta hora</span><span class="switch${d.remind ? ' is-on' : ''}"><i></i></span></button>` : ''}
-    ${field('Repetir', `<div class="chips">${REPEATS.map(([id, t]) => `<button class="chip${(d.repeat || '') === id ? ' is-on' : ''}" data-action="task-repeat" data-v="${id}">${t}</button>`).join('')}</div>
+    ${field('Repetir', `<div class="chips">${REPEATS.map(([id, t, ic]) => `<button class="chip${(d.repeat || '') === id ? ' is-on' : ''}" data-action="task-repeat" data-v="${id}">${icon(ic)} ${t}</button>`).join('')}</div>
       ${d.repeat === 'week' ? `<div class="days" style="margin-top:10px">${WEEK_ORDER.map((i) => `<button class="day${d.repeatDays.includes(i) ? ' is-on' : ''}" data-action="task-repeat-day" data-d="${i}" aria-pressed="${d.repeatDays.includes(i)}" aria-label="${DAY_SHORT[i]}">${DAY_LETTER[i]}</button>`).join('')}</div>` : ''}
       ${d.repeat ? '<p class="hint">Al completarla se crea la siguiente sola.</p>' : ''}`)}
     ${field('Prioridad', `<div class="chips">

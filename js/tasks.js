@@ -21,7 +21,7 @@ export const findTask = (id) => state.tasks.find((t) => t.id === id);
 
 /* ---------- Tareas que se repiten ---------- */
 // t.repeat: '' | 'day' | 'weekdays' | 'week' (t.repeatDays: [0..6]) | 'month'
-export const REPEATS = [['', 'No se repite'], ['day', 'Cada día'], ['weekdays', 'Lunes a viernes'], ['week', 'Cada semana'], ['month', 'Cada mes']];
+export const REPEATS = [['', 'No se repite', 'minus'], ['day', 'Cada día', 'sun'], ['weekdays', 'Lunes a viernes', 'briefcase'], ['week', 'Cada semana', 'calendarWeek'], ['month', 'Cada mes', 'calendar']];
 
 export function repeatLabel(t) {
   if (!t.repeat) return '';
