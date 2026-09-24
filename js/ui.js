@@ -83,7 +83,7 @@ function timeCol(time) {
   return `<span class="item-time">${hm}<small>${ap}</small></span>`;
 }
 
-export function quickAdd(placeholder = 'Agregar tarea… ej: Llamar a mamá mañana 3pm') {
+export function quickAdd(placeholder = (innerWidth < 480 ? 'Nueva tarea… ej: Gym 7am' : 'Agregar tarea… ej: Llamar a mamá mañana 3pm')) {
   return `
     <form class="quick" data-form="quick-task" autocomplete="off">
       ${icon('plus')}

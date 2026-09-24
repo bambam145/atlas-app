@@ -8,3 +8,4 @@ android/app/build/
 android/local.properties
 *.keystore
 *.idsig
+sitio-raiz/

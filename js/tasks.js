@@ -4,7 +4,7 @@ import { keyOf, fromKey, today, addDays, daysBetween, pad, uid, cap } from './ut
 
 export const STATUS = {
   todo: { label: 'Por hacer', tone: 'muted' },
-  doing: { label: 'Haciendo', tone: 'warn' },
+  doing: { label: 'Haciendo', tone: 'strong' },
   done: { label: 'Hecho', tone: 'good' },
 };
 

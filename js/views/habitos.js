@@ -69,7 +69,7 @@ function cardHtml(h) {
   else main = `<button class="pill" data-action="toggle-habit" data-id="${h.id}">${icon('check')} Hecho hoy</button>`;
 
   const skipBtn = canSkip || (s === 'skip' && !weekly)
-    ? `<button class="pill ghost small" data-action="skip-habit" data-id="${h.id}" ${canSkip ? '' : 'disabled'} data-tip="1 descanso por semana sin romper la racha">${icon('moon')}${s === 'skip' ? 'Quitar' : 'Descansar'}</button>`
+    ? `<button class="pill ghost small" data-action="skip-habit" data-id="${h.id}" ${canSkip ? '' : 'disabled'} data-tip="1 descanso por semana sin romper la racha">${icon('moon')}<span class="lbl">${s === 'skip' ? 'Quitar' : 'Descansar'}</span></button>`
     : '';
   const shareBtn = `<button class="pill ghost small" data-action="share-habit" data-id="${h.id}" aria-label="Compartir mi racha" data-tip="Compartir mi racha">${icon('share')}</button>`;
   const unitLabel = weekly ? 'Semanas' : 'Racha';
