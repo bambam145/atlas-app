@@ -1179,3 +1179,102 @@ a.pill { text-decoration: none; }
   .page-head { margin-bottom: 18px; }
   .summary { font-size: 14.5px; }
 }
+
+/* ---------- Comidas y sueño: verde = bien, lavanda = a medias, gris = no lo hiciste ---------- */
+:root { --meh: #A29BE0; --none: #454545; --on-tone: #0B0B0B; }
+:root[data-theme="light"] { --meh: #7B72D1; --none: #BDBDBD; --on-tone: #FFFFFF; }
+.tone-text.good { color: var(--good); }
+.tone-text.meh { color: var(--meh); }
+.tone-text.none { color: var(--text-3); }
+.tone-dot { width: 12px; height: 12px; flex: none; display: inline-block; border-radius: 4px; background: var(--none); }
+.tone-dot.good { background: var(--good); }
+.tone-dot.meh { background: var(--meh); }
+.check.tone.is-on.good { background: var(--good); border-color: var(--good); }
+.check.tone.is-on.meh { background: var(--meh); border-color: var(--meh); }
+.check.tone.is-on.none { background: var(--none); border-color: var(--none); }
+.check.tone.is-on .i { color: var(--on-tone); }
+.check.tone.is-on.none .i { color: var(--text-2); }
+.item.is-toned.is-done .item-card { opacity: 0.72; }
+.item.is-toned.is-done .item-title { text-decoration: none; color: var(--text-2); }
+.dot.good { background: var(--good); }
+.dot.meh { background: var(--meh); }
+.dot.none { background: var(--none); }
+.wd.good { background: var(--good); color: var(--on-tone); }
+.wd.meh { background: var(--meh); color: var(--on-tone); }
+.wd.none { background: var(--none); color: var(--text-2); }
+.pill .tone-dot { margin-right: 2px; }
+
+/* Tipo de hábito (editor) */
+.kind-opts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.choice-edit { display: flex; flex-direction: column; gap: 8px; }
+.choice-edit-row { display: flex; align-items: center; gap: 10px; }
+.choice-edit-row .input { flex: 1; min-width: 0; }
+
+/* Hoja: ¿cómo te fue? */
+.choice-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.choice-opt {
+  display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 16px; text-align: left;
+  font-size: 15.5px; font-weight: 600; color: var(--text); background: var(--surface-2); border: 1px solid transparent; border-radius: 14px;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s var(--ease);
+}
+.choice-opt .tone-dot { width: 16px; height: 16px; border-radius: 5px; }
+.choice-opt span { flex: 1; }
+.choice-opt .i { width: 18px; height: 18px; }
+.choice-opt:active { transform: scale(0.98); }
+.choice-opt.is-on { border-color: var(--text-2); background: var(--surface-3); }
+
+/* Hoja: sueño */
+.time-now { display: flex; gap: 8px; align-items: center; }
+.time-now .input { flex: 1; min-width: 0; }
+.time-now .pill { flex: none; }
+.sheet-sleep .seg { margin: 4px 0 6px; }
+.sleep-result { margin: 14px 0 0; padding: 14px 16px; font-size: 14px; color: var(--text-2); background: var(--surface-2); border-radius: 14px; }
+.sleep-result b { font-size: 22px; font-weight: 400; letter-spacing: -0.03em; margin-right: 4px; }
+.sleep-result.good b { color: var(--good); }
+.sleep-result.meh b { color: var(--meh); }
+@media (max-width: 480px) { .sheet-sleep .two-fields { grid-template-columns: 1fr; } }
+
+/* Nota rápida del ánimo */
+.note-input { margin-top: 10px; height: 44px; font-size: 14px; }
+.mood-hint { margin: 10px 0 0; }
+
+/* Resumen semanal / mensual */
+.sum-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sum-head .label { margin: 0; }
+.sum-nav { margin: 14px 0 12px; }
+.sum-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+.sum-kpis div { padding: 12px; background: var(--surface-2); border-radius: 14px; min-width: 0; }
+.sum-kpis b { display: block; font-size: 24px; font-weight: 300; letter-spacing: -0.05em; line-height: 1.1; }
+.sum-kpis span { font-size: 11.5px; font-weight: 600; color: var(--text-3); }
+.sum-list { display: flex; flex-direction: column; }
+.sum-row { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+.sum-body { flex: 1; min-width: 0; }
+.sum-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.sum-name { font-size: 14px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sum-big { flex: none; font-size: 17px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.sum-big small { font-size: 11.5px; color: var(--text-3); letter-spacing: 0; }
+.sum-bar { display: flex; height: 6px; margin: 8px 0 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+.sum-bar i { display: block; height: 100%; }
+.sum-bar .done { background: var(--text); }
+.sum-bar .good { background: var(--good); }
+.sum-bar .meh { background: var(--meh); }
+.sum-bar .none { background: var(--none); }
+.sum-text { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-3); }
+.sum-mood { margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--border); }
+.mood-strip { display: flex; align-items: flex-end; gap: 6px; height: 90px; margin-bottom: 18px; }
+.mood-strip.month { gap: 3px; height: 70px; }
+.mood-col { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
+.mood-col i { display: block; width: 100%; max-width: 26px; border-radius: 4px; background: var(--surface-3); }
+.mood-col small { font-size: 11px; font-weight: 600; color: var(--text-3); }
+.mood-col.future { opacity: 0.35; }
+.mood-col i.m1 { background: color-mix(in srgb, var(--meh) 30%, var(--surface-3)); }
+.mood-col i.m2 { background: color-mix(in srgb, var(--meh) 50%, var(--surface-3)); }
+.mood-col i.m3 { background: color-mix(in srgb, var(--meh) 70%, var(--surface-3)); }
+.mood-col i.m4 { background: color-mix(in srgb, var(--meh) 88%, var(--surface-3)); }
+.mood-col i.m5 { background: var(--meh); }
+.insights { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.insights li { display: flex; gap: 10px; align-items: flex-start; padding: 12px; font-size: 13.5px; line-height: 1.5; color: var(--text-2); background: var(--surface-2); border-radius: 14px; }
+.insights b { color: var(--text); }
+.ins-emoji { font-size: 20px; line-height: 1.2; }
+.memory { display: block; width: 100%; text-align: left; }
+.memory p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--text-2); }

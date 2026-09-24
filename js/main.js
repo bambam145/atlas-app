@@ -1,14 +1,15 @@
 // atlas — punto de entrada: navegación, render y acciones.
 import { state, save, setRenderer, replaceState, isValidBackup } from './store.js';
 import { icon, logo, wordmark } from './icons.js';
-import { today, keyOf, fromKey, addDays, fromMinutes, uid, fmtDay, fmtTime, ALL_DAYS } from './util.js';
+import { today, keyOf, fromKey, addDays, fromMinutes, uid, fmtDay, fmtTime, pad, ALL_DAYS } from './util.js';
 import { findHabit, isScheduled, statusOf, setStatus, streakOf, skipsThisWeek, SKIPS_PER_WEEK, HABIT_SUGGESTIONS, momentTime,
-  isCounter, isWeekly, targetOf, countOf, setCount, weekCount, perWeekOf, habitFromSuggestion } from './habits.js';
+  isCounter, isWeekly, targetOf, countOf, setCount, weekCount, perWeekOf, habitFromSuggestion,
+  isChoice, isSleep, choiceLabels, CHOICE_VALUES, setSleep, sleepMinutes, sleepGoalOf, fmtDuration, isGlasses, litersText, migrateHabits } from './habits.js';
 import { findTask, newTask, setTaskStatus, parseTask, QUADRANTS } from './tasks.js';
 import { findGoal, GOAL_SUGGESTIONS } from './goals.js';
 import { checkRewards } from './xp.js';
 import { toast, toastQueue } from './ui.js';
-import { sheet, openSheet, closeSheet, renderSheet, openHabit, openTask, openGoal, inviteText } from './sheets.js';
+import { sheet, openSheet, closeSheet, renderSheet, openHabit, openTask, openGoal, inviteText, openSleep } from './sheets.js';
 import { renderHoy, levelCard, cloudBannerVisible } from './views/hoy.js';
 import { renderTareas } from './views/tareas.js';
 import { renderPlanner, plannerMode, plannerAnchor, START_H, HOUR_PX } from './views/planner.js';
@@ -100,6 +101,7 @@ function render() {
     lastView = null;
     return;
   }
+  migrateHabits();
   app.dataset.view = view;
   app.innerHTML = VIEWS[view]({ pop });
   pop = null;
@@ -158,15 +160,21 @@ function toggleHabit(id) {
   const t = today();
   if (!h) return;
   if (!isScheduled(h, t)) { toast('Hoy no toca este hábito'); return; }
+  // Opciones (comidas) y sueño se registran en una hoja.
+  if (isChoice(h)) { openSheet('choice', { id }); return; }
+  if (isSleep(h)) { openSleep(h); return; }
   const wasDone = statusOf(h, t) === 'done';
   if (isCounter(h)) {
-    // Contador: cada toque suma uno; al llegar a la meta, se cumple.
-    if (wasDone) { toast(`${h.emoji} Ya completaste ${targetOf(h)} ${h.unit || 'veces'} hoy · usa − para corregir`); return; }
+    // Contador: cada toque suma uno, sin tope. La meta se cumple al llegar a la meta.
     const n = countOf(h, t) + 1;
     setCount(h, t, n);
     pop = id;
     if (navigator.vibrate) navigator.vibrate(12);
-    if (n < targetOf(h)) { toast(`${h.emoji} ${n}/${targetOf(h)} ${h.unit || ''}`.trim()); render(); return; }
+    const liters = isGlasses(h) ? ` · ${litersText(n)}` : '';
+    if (n !== targetOf(h)) {
+      toast(n > targetOf(h) ? `${h.emoji} ${n} ${h.unit || 'veces'}${liters} · +${n - targetOf(h)} sobre tu meta 🎉` : `${h.emoji} ${n}/${targetOf(h)} ${h.unit || ''}${liters}`.trim());
+      render(); return;
+    }
   } else {
     setStatus(h, t, wasDone ? null : 'done');
   }
@@ -180,6 +188,42 @@ function toggleHabit(id) {
     } else {
       toast(pending ? `${h.emoji} ${streakOf(h)} 🔥 · +10 XP` : '🔥 ¡Día perfecto! +20 XP extra');
     }
+  }
+  render();
+}
+
+const nowTime = () => { const n = new Date(); return `${pad(n.getHours())}:${pad(n.getMinutes())}`; };
+
+// Registrar una opción (sano / no sano / no comí).
+function pickChoice(id, v) {
+  const h = findHabit(id);
+  const t = today();
+  if (!h) return;
+  setStatus(h, t, v);
+  closeSheet();
+  pop = id;
+  if (navigator.vibrate) navigator.vibrate(12);
+  const lbl = choiceLabels(h)[CHOICE_VALUES.indexOf(v)];
+  if (v === 'done') {
+    const pending = state.habits.some((x) => !isWeekly(x) && isScheduled(x, t) && !statusOf(x, t));
+    toast(pending ? `${h.emoji} ${lbl} · ${streakOf(h)} 🔥 · +10 XP` : `🔥 ¡Día completo! ${h.emoji} ${lbl}`);
+  } else toast(`${h.emoji} ${lbl} · registrado`);
+  render();
+}
+
+// Guardar sueño: con las dos horas se calcula cuánto dormiste; solo con la de acostarte queda pendiente.
+function saveSleep() {
+  const h = findHabit(sheet.id);
+  const { bed, wake } = sheet.draft;
+  if (!bed) { toast('Pon la hora en que te acostaste'); return; }
+  const d = fromKey(sheet.day);
+  setSleep(h, d, { bed, wake });
+  closeSheet();
+  if (!wake) toast('🌙 Buenas noches. Mañana toca al despertar');
+  else {
+    const min = sleepMinutes({ bed, wake });
+    pop = h.id;
+    toast(min >= sleepGoalOf(h) * 60 - 15 ? `☀️ Dormiste ${fmtDuration(min)} · meta cumplida` : `☀️ Dormiste ${fmtDuration(min)} · meta ${String(sleepGoalOf(h)).replace('.', ',')} h`);
   }
   render();
 }
@@ -208,8 +252,11 @@ function saveHabit() {
   if (d.freq !== 'weekly' && !d.days.length) { toast('Elige al menos un día'); return; }
   const fields = {
     emoji: d.emoji, name, days: d.freq === 'weekly' ? [...ALL_DAYS] : [...d.days].sort(), time: d.time,
-    freq: d.freq, perWeek: d.perWeek, target: d.target, unit: d.target > 1 ? (d.unit || '').trim() : '',
-    remind: d.remind !== false,
+    freq: d.freq, perWeek: d.perWeek, target: d.kind === 'counter' ? Math.max(2, d.target) : 1,
+    unit: d.kind === 'counter' ? (d.unit || '').trim() : '',
+    remind: d.remind !== false, kind: d.kind,
+    labels: d.kind === 'choice' ? d.labels.map((x) => (x || '').trim()) : undefined,
+    sleepGoal: d.kind === 'sleep' ? d.sleepGoal : undefined,
   };
   if (sheet.mode === 'add') {
     state.habits.push({ id: uid(), createdAt: keyOf(today()), ...fields });
@@ -299,7 +346,7 @@ function setMood(v, k = keyOf(today())) {
 }
 
 const actions = {
-  nav: (el) => go(el.dataset.view),
+  nav: (el) => { if (el.dataset.view === 'diario') setDiaryDate(null); go(el.dataset.view); }, // el diario abre siempre en hoy
   theme: () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; save(); render(); },
   new: () => openSheet('new'),
   more: () => openSheet('more'),
@@ -475,14 +522,29 @@ const actions = {
   'edit-habit': (el) => openHabit(el.dataset.id),
   'habit-suggest': (el) => {
     const [emoji, name, m, extra = {}] = HABIT_SUGGESTIONS[+el.dataset.i];
-    Object.assign(sheet.draft, { emoji, name, time: momentTime(m), freq: 'days', perWeek: 3, target: 1, unit: '', ...extra });
+    Object.assign(sheet.draft, { emoji, name, time: momentTime(m), freq: 'days', perWeek: 3, target: 1, unit: '', kind: 'check', labels: ['', '', ''], sleepGoal: 8, ...structuredClone(extra) });
+    if (!extra.kind) sheet.draft.kind = sheet.draft.target > 1 ? 'counter' : 'check';
     renderSheet();
   },
   'habit-remind': () => { sheet.draft.remind = !sheet.draft.remind; renderSheet(); },
   'habit-freq': (el) => { sheet.draft.freq = el.dataset.v; renderSheet(); },
   'habit-perweek': (el) => { sheet.draft.perWeek = Math.min(6, Math.max(1, sheet.draft.perWeek + +el.dataset.v)); renderSheet(); },
-  'habit-target': (el) => { sheet.draft.target = Math.min(30, Math.max(1, sheet.draft.target + +el.dataset.v)); renderSheet(); },
+  'habit-target': (el) => { sheet.draft.target = Math.min(30, Math.max(2, sheet.draft.target + +el.dataset.v)); renderSheet(); },
   'habit-dec': (el) => decHabit(el.dataset.id),
+  'habit-kind': (el) => {
+    const d = sheet.draft;
+    d.kind = el.dataset.v;
+    if (d.kind === 'counter' && d.target < 2) { d.target = 8; d.unit = d.unit || 'vasos'; }
+    if (d.kind !== 'counter') d.target = 1;
+    renderSheet();
+  },
+  'habit-sleepgoal': (el) => { sheet.draft.sleepGoal = Math.min(12, Math.max(4, sheet.draft.sleepGoal + +el.dataset.v)); renderSheet(); },
+  'choice-pick': (el) => pickChoice(sheet.id, el.dataset.v),
+  'choice-clear': () => { const h = findHabit(sheet.id); setStatus(h, today(), null); closeSheet(); render(); },
+  'sleep-now': (el) => { sheet.draft[el.dataset.v] = nowTime(); renderSheet(); },
+  'sleep-save': saveSleep,
+  'sleep-day': (el) => openSleep(findHabit(sheet.id), el.dataset.v),
+  'sleep-clear': () => { const h = findHabit(sheet.id); setSleep(h, fromKey(sheet.day), null); closeSheet(); toast('Registro de sueño borrado'); render(); },
   'habit-moment': (el) => { sheet.draft.time = momentTime(el.dataset.v); renderSheet(); },
   'habit-day': (el) => {
     const d = +el.dataset.d;
@@ -557,6 +619,10 @@ const actions = {
   'goal-add': (el) => openSheet('goal-add', { id: el.dataset.id, amount: '' }),
   'goal-quick': (el) => { sheet.amount = (parseFloat(sheet.amount) || 0) + +el.dataset.v; renderSheet(); },
   'save-goal-add': saveGoalAdd,
+
+  // Resumen (Estadísticas)
+  'sum-mode': (el) => { state.ui.sumMode = el.dataset.v; state.ui.sumOffset = 0; save(); render(); },
+  'sum-move': (el) => { state.ui.sumOffset = Math.min(0, (state.ui.sumOffset || 0) + +el.dataset.v); render(); },
 
   // Mapa
   'map-toggle': (el) => { toggleKind(el.dataset.v); render(); },
@@ -755,9 +821,17 @@ document.addEventListener('input', (e) => {
     if (m && t.dataset.auth === 'password') { const s = passStrength(t.value); m.dataset.level = s; m.querySelector('span').textContent = STRENGTH_LABEL[s]; }
     return;
   }
+  if (sheet && t.dataset.bindLabel) sheet.draft.labels[+t.dataset.bindLabel] = t.value;
   if (sheet && t.dataset.bind) {
     if (sheet.type === 'goal-add') sheet[t.dataset.bind] = t.value;
     else sheet.draft[t.dataset.bind] = t.value;
+  }
+  if (t.dataset.note) {
+    const e = state.journal[t.dataset.note] || (state.journal[t.dataset.note] = { text: '', mood: null });
+    e.note = t.value;
+    clearTimeout(journalTimer);
+    journalTimer = setTimeout(save, 500);
+    return;
   }
   if (t.dataset.journal) {
     const k = t.dataset.journal;
@@ -770,6 +844,7 @@ document.addEventListener('input', (e) => {
 
 document.addEventListener('change', (e) => {
   if (sheet && e.target.dataset.bind === 'date') renderSheet();
+  if (sheet?.type === 'sleep' && e.target.dataset.bind) renderSheet(); // recalcula las horas dormidas
   if (e.target.matches('[data-import]')) importBackup(e.target);
   if (e.target.matches('[data-rem-time]') && /^\d{2}:\d{2}$/.test(e.target.value)) { state.reminders = { ...reminders(), summaryTime: e.target.value }; save(); toast(`✓ Resumen a las ${e.target.value}`); }
 });

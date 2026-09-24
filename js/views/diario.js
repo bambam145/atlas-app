@@ -3,8 +3,9 @@ import { icon } from '../icons.js';
 import { today, keyOf, fromKey, addDays, esc, DAY_LONG, MONTHS, DAY_SHORT } from '../util.js';
 import { dayStats, isScheduled, statusOf } from '../habits.js';
 import { pageHead, label } from '../ui.js';
+import { MOODS, insightsHtml } from './resumen.js';
 
-export const MOODS = [['😞', 'Mal'], ['😕', 'Regular'], ['😐', 'Normal'], ['🙂', 'Bien'], ['😄', 'Excelente']];
+export { MOODS };
 
 const PROMPTS = [
   '¿Qué salió bien hoy?',
@@ -42,6 +43,7 @@ export function renderDiario() {
     <section class="panel journal">
       <p class="label"><span>¿Cómo te sentiste?</span></p>
       <div class="moods big">${MOODS.map((m, i) => `<button class="mood${entry.mood === i + 1 ? ' is-on' : ''}" data-action="mood" data-v="${i + 1}" data-date="${k}" aria-label="${m[1]}"><span>${m[0]}</span><small>${m[1]}</small></button>`).join('')}</div>
+      ${entry.mood ? `<input class="input note-input" data-note="${k}" maxlength="140" placeholder="¿Por qué te sentiste así? (opcional)" value="${esc(entry.note || '')}">` : ''}
       <p class="label"><span>${prompt}</span></p>
       <textarea class="input area" data-journal="${k}" placeholder="Escribe libremente… se guarda solo." rows="7">${esc(entry.text || '')}</textarea>
       <p class="hint">${icon('network')} Escribe <b>[[Nombre]]</b> para conectar con un hábito, meta o tarea en tu <button class="inline-link" data-action="nav" data-view="mapa">Mapa</button>.</p>
@@ -63,10 +65,26 @@ export function renderDiario() {
       const pd = fromKey(pk);
       return `<button class="entry" data-action="diary-open" data-date="${pk}">
         <span class="entry-date"><b>${pd.getDate()}</b>${DAY_SHORT[pd.getDay()]}</span>
-        <span class="entry-body"><span class="entry-mood">${e.mood ? MOODS[e.mood - 1].join(' ') : ''}</span><span class="entry-text">${esc((e.text || '').slice(0, 140)) || '<i>Sin texto</i>'}</span></span>
+        <span class="entry-body"><span class="entry-mood">${e.mood ? MOODS[e.mood - 1].join(' ') : ''}</span><span class="entry-text">${esc((e.text || e.note || '').slice(0, 140)) || '<i>Sin texto</i>'}</span></span>
       </button>`;
     }).join('')}</div></div>`
     : '';
 
-  return `${head}${nav}<div class="narrow">${editor}${list}</div>`;
+  const helps = `<section class="panel">${label('Lo que te hace bien')}${insightsHtml()}</section>`;
+  return `${head}${nav}<div class="narrow">${editor}${k === tk ? memory() : ''}${helps}${list}</div>`;
+}
+
+// "Hace un mes escribiste…": una nota vieja para ver cuánto has cambiado.
+function memory() {
+  for (const [days, when] of [[365, 'Hace un año'], [30, 'Hace un mes'], [7, 'Hace una semana']]) {
+    const pk = keyOf(addDays(today(), -days));
+    const e = state.journal[pk];
+    const text = (e?.text || e?.note || '').trim();
+    if (!text) continue;
+    return `<button class="panel memory" data-action="diary-open" data-date="${pk}">
+      ${label(`${when} escribiste`)}
+      <p>${e.mood ? `${MOODS[e.mood - 1][0]} ` : ''}${esc(text.slice(0, 180))}${text.length > 180 ? '…' : ''}</p>
+    </button>`;
+  }
+  return '';
 }

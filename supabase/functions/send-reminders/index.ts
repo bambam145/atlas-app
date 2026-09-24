@@ -24,8 +24,9 @@ function localNow(tz: string): { day: string; min: number; wd: number } {
 type Habit = { id: string; emoji?: string; name: string; days?: number[]; time?: string; createdAt?: string; target?: number; unit?: string; freq?: string; remind?: boolean };
 
 const target = (h: Habit) => Math.max(1, Number(h.target) || 1);
+// Ya registrado: hecho, a medias ('meh') o "no lo hice" ('none') no necesitan recordatorio.
 function isDone(h: Habit, v: unknown) {
-  if (v === 'done') return true;
+  if (v === 'done' || v === 'meh' || v === 'none') return true;
   return typeof v === 'number' && v >= target(h);
 }
 const scheduledToday = (h: Habit, day: string, wd: number) =>

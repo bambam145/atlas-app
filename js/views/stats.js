@@ -4,6 +4,7 @@ import { today, keyOf, addDays, mondayOf, esc, DAY_SHORT, WEEK_ORDER, MONTHS } f
 import { dayStats, streakOf, bestOf, rateOf, isPerfectDay, byTime } from '../habits.js';
 import { progress } from '../xp.js';
 import { pageHead, label, emptyState } from '../ui.js';
+import { renderSummary } from './resumen.js';
 
 // Serie única y monocroma: la intensidad (no el color) codifica la magnitud.
 
@@ -99,7 +100,8 @@ export function renderStats() {
       </table></div>
     </section>` : '';
 
-  return head + `
+  return head + renderSummary() + `
+    ${label('Todo tu historial')}
     <div class="kpis">
       ${kpi(total30 ? `${Math.round((done30 / total30) * 100)}%` : '—', 'Constancia 30 días', 'chart')}
       ${kpi(done30, 'Hábitos cumplidos', 'repeat')}

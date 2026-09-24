@@ -152,5 +152,6 @@ function sidePanels() {
     <section class="panel">${label('Esta semana')}<div class="bars">${bars}</div></section>
     <section class="panel">${label('Mejores rachas')}${streaks}</section>
     <section class="panel">${label('¿Cómo te sientes hoy?')}${moods}
+      ${entry?.mood ? `<input class="input note-input" data-note="${keyOf(t)}" maxlength="140" placeholder="¿Por qué? (opcional)" value="${esc(entry.note || '')}">` : '<p class="panel-note mood-hint">Márcalo cada día: en Estadísticas verás qué hábitos te hacen sentir mejor.</p>'}
       <button class="text-btn" data-action="nav" data-view="diario">${icon('feather')} ${entry?.text ? 'Ver nota de hoy' : 'Escribir en el diario'}</button></section>`;
 }

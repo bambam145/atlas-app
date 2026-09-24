@@ -1,7 +1,8 @@
 // Piezas de interfaz reutilizables (devuelven HTML).
 import { icon } from './icons.js';
-import { esc, fmtTime, fmtDay, today } from './util.js';
-import { statusOf, streakOf, streakText, isCounter, isWeekly, countOf, targetOf, weekCount, perWeekOf } from './habits.js';
+import { esc, fmtTime, fmtDay, today, addDays } from './util.js';
+import { statusOf, streakOf, streakText, isCounter, isWeekly, countOf, targetOf, weekCount, perWeekOf,
+  isChoice, isSleep, choiceLabelOf, timeOf, isGlasses, litersText, sleepOf, sleepMinutes, fmtDuration, sleepGoalOf } from './habits.js';
 import { taskMeta, CATEGORY_ICON, isOverdue } from './tasks.js';
 
 export function pageHead({ eyebrow, title, sub = '', right = '' }) {
@@ -20,10 +21,32 @@ export const checkbox = (on, cls = '') => `<span class="check ${cls}${on ? ' is-
 
 export const pillTag = (text, tone = '') => `<span class="tag${tone ? ` tag-${tone}` : ''}">${text}</span>`;
 
-// Anillo de progreso para hábitos con contador (3/8).
+// Anillo de progreso para hábitos con contador (3/8). Pasada la meta muestra "+2".
 export function counterRing(count, target) {
-  const pct = Math.round((count / target) * 100);
-  return `<span class="ring${count >= target ? ' is-on' : ''}" style="--p:${pct}" aria-hidden="true">${count >= target ? icon('check') : `<b>${count}</b>`}</span>`;
+  const pct = Math.min(100, Math.round((count / target) * 100));
+  const inner = count > target ? `<b>+${count - target}</b>` : count === target ? icon('check') : `<b>${count}</b>`;
+  return `<span class="ring${count >= target ? ' is-on' : ''}" style="--p:${pct}" aria-hidden="true">${inner}</span>`;
+}
+
+// Círculo de estado con color: verde = bien, lavanda = a medias, gris = no lo hice.
+export const TONE = { done: 'good', meh: 'meh', none: 'none' };
+const toneCheck = (s) => `<span class="check tone ${TONE[s] || ''}${s && s !== 'skip' ? ' is-on' : ''}" aria-hidden="true">${s === 'none' ? icon('minus') : icon('check')}</span>`;
+
+// Texto corto del registro: "Sano · 8:15 am", "7 h 30 min", "10 de 8 vasos · 2,5 L".
+function registeredInfo(h, d, s) {
+  const at = timeOf(h, d);
+  const when = at ? ` · ${fmtTime(at)}` : '';
+  if (isSleep(h)) {
+    const rec = sleepOf(d);
+    const min = sleepMinutes(rec);
+    const night = isToday(d) && new Date().getHours() >= 18 && !sleepOf(addDays(d, 1))?.bed ? `<span>${icon('moon')} Toca al acostarte</span>` : '';
+    if (min !== null) return `<span class="tone-text ${TONE[s]}">${fmtDuration(min)}</span><span>${fmtTime(rec.bed)} → ${fmtTime(rec.wake)}</span>${night}`;
+    if (rec?.bed) return `<span>${icon('moon')} Te acostaste ${fmtTime(rec.bed)} · toca al despertar</span>`;
+    return `<span>${icon('moon')} Meta ${String(sleepGoalOf(h)).replace('.', ',')} h · toca para registrar</span>`;
+  }
+  if (isChoice(h)) return s ? `<span class="tone-text ${TONE[s]}">${esc(choiceLabelOf(h, s))}${when}</span>` : `<span>${icon('repeat')} Toca para registrar</span>`;
+  if (s === 'done') return `<span>${icon('check')} Hecho${when}</span>`;
+  return `<span>${icon('repeat')} Hábito</span>`;
 }
 
 // Fila de hábito para Hoy / Agenda.
@@ -31,20 +54,23 @@ export function habitRow(h, d, { pop } = {}) {
   const s = statusOf(h, d);
   const counter = isCounter(h);
   const weekly = isWeekly(h);
+  const toned = isChoice(h) || isSleep(h);
   const count = counter ? countOf(h, d) : 0;
-  const cls = s === 'done' ? ' is-done' : s === 'skip' ? ' is-skip' : '';
+  const cls = s === 'skip' ? ' is-skip' : s ? ' is-done' : '';
   const n = streakOf(h);
   let info;
   if (s === 'skip') info = `<span>${icon('moon')} Descanso · racha a salvo</span>`;
   else if (weekly) info = `<span>${icon('repeat')} ${weekCount(h, d)} de ${perWeekOf(h)} esta semana</span>`;
-  else if (counter) info = `<span>${icon('repeat')} ${count} de ${targetOf(h)} ${esc(h.unit || 'veces')}</span>`;
-  else info = `<span>${icon('repeat')} Hábito</span>`;
+  else if (counter) {
+    const extra = count > targetOf(h) ? ` · +${count - targetOf(h)} 🎉` : '';
+    info = `<span>${icon('repeat')} ${count} de ${targetOf(h)} ${esc(h.unit || 'veces')}${isGlasses(h) && count ? ` · ${litersText(count)}` : ''}${extra}</span>`;
+  } else info = registeredInfo(h, d, s);
   const meta = `${info}${s === 'skip' ? '' : `<span class="${n ? 'fire' : ''}">${icon('flame')} ${streakText(n, h)}</span>`}`;
   return `
-    <div class="item${cls}${pop ? ' pop' : ''}${counter ? ' is-counter' : ''}" data-action="toggle-habit" data-id="${h.id}" role="button" tabindex="0" aria-pressed="${s === 'done'}"${counter ? ` aria-label="${esc(h.name)}: ${count} de ${targetOf(h)}. Toca para sumar uno."` : ''}>
+    <div class="item${cls}${toned ? ' is-toned' : ''}${pop ? ' pop' : ''}${counter ? ' is-counter' : ''}" data-action="toggle-habit" data-id="${h.id}" role="button" tabindex="0" aria-pressed="${s === 'done'}"${counter ? ` aria-label="${esc(h.name)}: ${count} de ${targetOf(h)}. Toca para sumar uno."` : ''}>
       ${timeCol(h.time)}
       <div class="item-card">
-        ${counter ? counterRing(count, targetOf(h)) : checkbox(s === 'done')}
+        ${counter ? counterRing(count, targetOf(h)) : toned ? toneCheck(s) : checkbox(s === 'done')}
         <span class="item-emoji" aria-hidden="true">${h.emoji}</span>
         <span class="item-body">
           <span class="item-title">${esc(h.name)}</span>

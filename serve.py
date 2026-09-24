@@ -18,7 +18,9 @@ class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
 
-socketserver.TCPServer.allow_reuse_address = True
-with socketserver.TCPServer(("", PORT), NoCacheHandler) as httpd:
+# Con hilos: una conexión colgada del navegador no bloquea las demás.
+socketserver.ThreadingTCPServer.allow_reuse_address = True
+socketserver.ThreadingTCPServer.daemon_threads = True
+with socketserver.ThreadingTCPServer(("", PORT), NoCacheHandler) as httpd:
     print(f"atlas corriendo en http://localhost:{PORT}")
     httpd.serve_forever()

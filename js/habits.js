@@ -5,10 +5,15 @@
 //     target?: veces por día (1 = marcar una vez; 8 = contador 0/8),
 //     unit?:   "vasos", "páginas"… (solo para contador),
 //     freq?:   'days' (días fijos, por defecto) | 'weekly' (N veces por semana, cualquier día),
-//     perWeek?: N para freq 'weekly' }
-// Registro diario (state.log[fecha][id]): 'done' | 'skip' | número (avance del contador).
+//     perWeek?: N para freq 'weekly',
+//     kind?:   'check' | 'counter' | 'choice' (bien / a medias / no lo hice) | 'sleep' (horas de sueño),
+//     labels?: [bien, a medias, no] para 'choice',
+//     sleepGoal?: horas para 'sleep' }
+// Registro diario (state.log[fecha][id]): 'done' | 'skip' | 'meh' | 'none' | número (avance del contador).
+//   'meh' = lo hiciste, pero no del todo (comí no sano, dormí menos). 'none' = no lo hiciste.
+// Hora en que se registró: state.times[fecha][id] = 'HH:MM'. Sueño: state.sleep[día en que despiertas] = { bed, wake }.
 import { state, save } from './store.js';
-import { keyOf, fromKey, today, addDays, mondayOf, DAY_SHORT, WEEK_ORDER } from './util.js';
+import { keyOf, fromKey, today, addDays, mondayOf, pad, toMinutes, DAY_SHORT, WEEK_ORDER } from './util.js';
 
 export const SKIPS_PER_WEEK = 1;
 
@@ -30,10 +35,10 @@ export const HABIT_SUGGESTIONS = [
   ['🧘', 'Meditar 5 min', 'manana'],
   ['🏃', 'Caminar 20 min', 'tarde'],
   ['🏋️', 'Entrenar', 'tarde', { freq: 'weekly', perWeek: 3 }],
-  ['🍳', 'Desayunar sano', 'manana'],
-  ['🥗', 'Almuerzo balanceado', 'mediodia'],
-  ['🍽️', 'Cenar ligero', 'noche'],
-  ['😴', 'Dormir 8 horas', 'noche'],
+  ['🍳', 'Desayunar sano', 'manana', { kind: 'choice', labels: ['Sano', 'Comí, pero no sano', 'No desayuné'] }],
+  ['🥗', 'Almuerzo balanceado', 'mediodia', { kind: 'choice', labels: ['Balanceado', 'Comí, pero no sano', 'No almorcé'] }],
+  ['🍽️', 'Cenar ligero', 'noche', { kind: 'choice', labels: ['Ligero', 'Pesado', 'No cené'] }],
+  ['😴', 'Dormir 8 horas', 'noche', { kind: 'sleep', sleepGoal: 8 }],
   ['📵', '1 hora sin redes', 'noche'],
   ['✍️', 'Escribir mi diario', 'noche'],
   ['🙏', 'Agradecer 3 cosas', 'manana'],
@@ -49,7 +54,64 @@ export const EMOJIS = [
 
 export const findHabit = (id) => state.habits.find((h) => h.id === id);
 export const targetOf = (h) => Math.max(1, h.target || 1);
-export const isCounter = (h) => targetOf(h) > 1;
+export const kindOf = (h) => h.kind || (targetOf(h) > 1 ? 'counter' : 'check');
+export const isCounter = (h) => kindOf(h) === 'counter' && targetOf(h) > 1;
+export const isChoice = (h) => kindOf(h) === 'choice';
+export const isSleep = (h) => kindOf(h) === 'sleep';
+
+// Opciones: el registro guarda 'done' (bien), 'meh' (a medias) o 'none' (no lo hice).
+export const CHOICE_VALUES = ['done', 'meh', 'none'];
+export const CHOICE_DEFAULT = ['Bien', 'A medias', 'No lo hice'];
+export const choiceLabels = (h) => CHOICE_DEFAULT.map((d, i) => (h.labels && h.labels[i]) || d);
+export const choiceLabelOf = (h, s) => choiceLabels(h)[CHOICE_VALUES.indexOf(s)] || '';
+
+// Hábitos creados antes de los tipos: las comidas pasan a "opciones" y dormir a "sueño".
+export function migrateHabits() {
+  let changed = false;
+  for (const h of state.habits) {
+    if (h.kind || targetOf(h) > 1) continue;
+    const n = h.name.toLowerCase();
+    let extra = null;
+    if (/desayun/.test(n)) extra = { kind: 'choice', labels: ['Sano', 'Comí, pero no sano', 'No desayuné'] };
+    else if (/almuer/.test(n)) extra = { kind: 'choice', labels: [/balance/.test(n) ? 'Balanceado' : 'Sano', 'Comí, pero no sano', 'No almorcé'] };
+    else if (/\bcen(a|ar)\b/.test(n)) extra = { kind: 'choice', labels: [/liger/.test(n) ? 'Ligero' : 'Sano', 'Pesado', 'No cené'] };
+    else if (/dormir|sueño/.test(n)) {
+      const num = parseFloat((n.match(/\d+([.,]\d)?/) || ['8'])[0].replace(',', '.'));
+      extra = { kind: 'sleep', sleepGoal: Math.min(12, Math.max(4, num)) };
+    }
+    if (extra) { Object.assign(h, extra); changed = true; }
+  }
+  if (changed) save();
+}
+
+// Vasos estándar de 250 ml.
+export const GLASS_ML = 250;
+export const isGlasses = (h) => /vaso/i.test(h.unit || '');
+export const litersText = (n) => `${new Intl.NumberFormat('es', { maximumFractionDigits: 1 }).format((n * GLASS_ML) / 1000)} L`;
+
+/* ---------- Sueño ---------- */
+
+export const sleepGoalOf = (h) => h.sleepGoal || 8;
+// Minutos dormidos entre la hora de acostarse y la de despertar (cruza la medianoche).
+export function sleepMinutes(rec) {
+  if (!rec || !rec.bed || !rec.wake) return null;
+  let m = toMinutes(rec.wake) - toMinutes(rec.bed);
+  if (m <= 0) m += 1440;
+  return m;
+}
+export const fmtDuration = (min) => `${Math.floor(min / 60)} h${Math.round(min % 60) ? ` ${pad(Math.round(min % 60))} min` : ''}`;
+export const sleepOf = (d) => (state.sleep || {})[keyOf(d)];
+
+// El sueño se guarda en el día en que despiertas. Meta cumplida = 'done'; menos horas = 'meh'.
+export function setSleep(h, d, rec) {
+  const k = keyOf(d);
+  const all = state.sleep || (state.sleep = {});
+  if (!rec || (!rec.bed && !rec.wake)) delete all[k];
+  else all[k] = { bed: rec.bed || '', wake: rec.wake || '' };
+  const min = sleepMinutes(all[k]);
+  if (min === null) writeRaw(h, d, null);
+  else writeRaw(h, d, min >= sleepGoalOf(h) * 60 - 15 ? 'done' : 'meh', all[k].wake);
+}
 export const isWeekly = (h) => h.freq === 'weekly';
 export const perWeekOf = (h) => Math.min(7, Math.max(1, h.perWeek || 3));
 
@@ -63,9 +125,12 @@ export const isDoneValue = (h, v) => v === 'done' || (typeof v === 'number' && v
 
 export function statusOf(h, d) {
   const v = rawOf(h, d);
-  if (v === 'skip') return 'skip';
-  return isDoneValue(h, v) ? 'done' : null; // 'done' | 'skip' | null
+  if (v === 'skip' || v === 'meh' || v === 'none') return v;
+  return isDoneValue(h, v) ? 'done' : null; // 'done' | 'skip' | 'meh' | 'none' | null
 }
+
+// Hora en que se registró ('HH:MM') o ''.
+export const timeOf = (h, d) => (state.times?.[keyOf(d)] || {})[h.id] || '';
 
 // Avance del contador en un día (0..target).
 export function countOf(h, d) {
@@ -74,13 +139,22 @@ export function countOf(h, d) {
   return typeof v === 'number' ? v : 0;
 }
 
-function writeRaw(h, d, value) {
+const nowHM = () => { const n = new Date(); return `${pad(n.getHours())}:${pad(n.getMinutes())}`; };
+
+// Escribe el registro del día y guarda la hora (la de ahora, si es hoy).
+function writeRaw(h, d, value, at) {
   const k = keyOf(d);
   const day = state.log[k] || (state.log[k] = {});
+  const times = state.times || (state.times = {});
   if (value === null || value === undefined || value === 0) {
     delete day[h.id];
     if (!Object.keys(day).length) delete state.log[k];
-  } else day[h.id] = value;
+    if (times[k]) { delete times[k][h.id]; if (!Object.keys(times[k]).length) delete times[k]; }
+  } else {
+    day[h.id] = value;
+    const hm = at || (k === keyOf(today()) ? nowHM() : '');
+    if (value === 'skip') { if (times[k]) delete times[k][h.id]; } else if (hm) (times[k] || (times[k] = {}))[h.id] = hm;
+  }
   save();
 }
 
@@ -89,8 +163,9 @@ export function setStatus(h, d, value) {
   writeRaw(h, d, value === 'done' && isCounter(h) ? targetOf(h) : value);
 }
 
+// Sin tope: la meta es la meta, pero puedes pasarte (10/8 vasos).
 export function setCount(h, d, n) {
-  writeRaw(h, d, Math.max(0, Math.min(targetOf(h), n)));
+  writeRaw(h, d, Math.max(0, Math.min(99, n)));
 }
 
 /* ---------- Semanales ---------- */
@@ -158,7 +233,7 @@ export function bestOf(h) {
     if (!isScheduled(h, d)) continue;
     const s = statusOf(h, d);
     if (s === 'done') { run++; best = Math.max(best, run); }
-    else if (!s && keyOf(d) !== tk) run = 0;
+    else if (s !== 'skip' && !(s === null && keyOf(d) === tk)) run = 0;
   }
   return best;
 }
@@ -232,6 +307,7 @@ export function daysLabel(days) {
 // "Todos los días", "3 veces por semana", "8 vasos · Entre semana"…
 export function freqLabel(h) {
   const base = isWeekly(h) ? `${perWeekOf(h)} ${perWeekOf(h) === 1 ? 'vez' : 'veces'} por semana` : daysLabel(h.days);
+  if (isSleep(h)) return `Meta ${String(sleepGoalOf(h)).replace('.', ',')} h · ${base}`;
   return isCounter(h) ? `${targetOf(h)} ${h.unit || 'veces'} al día · ${base}` : base;
 }
 
@@ -244,5 +320,5 @@ export const streakText = (n, h) => {
 // Crear un hábito a partir de una sugerencia.
 export function habitFromSuggestion(i, time, uidFn) {
   const [emoji, name, , extra = {}] = HABIT_SUGGESTIONS[i];
-  return { id: uidFn(), emoji, name, days: [0, 1, 2, 3, 4, 5, 6], time, createdAt: keyOf(today()), ...extra };
+  return { id: uidFn(), emoji, name, days: [0, 1, 2, 3, 4, 5, 6], time, createdAt: keyOf(today()), ...structuredClone(extra) };
 }
