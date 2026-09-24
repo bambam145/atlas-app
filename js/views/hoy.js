@@ -53,7 +53,7 @@ export function renderHoy(ctx) {
   const pct = counted ? Math.round((doneCount / counted) * 100) : 0;
 
   const row = (x) => (x.kind === 'h' ? habitRow(x.item, t, { pop: ctx.pop === x.item.id }) : taskRow(x.item, { pop: ctx.pop === x.item.id }));
-  const free = activePause() ? [] : state.habits.filter((h) => !isScheduled(h, t) && tk >= h.createdAt);
+  const free = activePause() ? [] : state.habits.filter((h) => !h.archivedAt && !isScheduled(h, t) && tk >= h.createdAt);
 
   const sub = hasItems
     ? `Hoy tienes <b>${plural(habits.length, 'hábito', 'hábitos')}</b> y <b>${plural(tasks.length, 'tarea', 'tareas')}</b>.`
@@ -156,7 +156,7 @@ function sidePanels() {
     return `<div class="${cls}" data-tip="${tip}"><div class="bar-track"><i style="height:${pct}%"></i></div><span>${DAY_LETTER[d.getDay()]}</span></div>`;
   }).join('');
 
-  const top = state.habits.map((h) => ({ h, n: streakOf(h) })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 4);
+  const top = state.habits.filter((h) => !h.archivedAt).map((h) => ({ h, n: streakOf(h) })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 4);
   const streaks = top.length
     ? `<div class="top-list">${top.map(({ h, n }) => `<div class="top-item"><span class="item-emoji sm">${h.emoji}</span><div>${esc(h.name)}</div><b>${n}</b><span class="fire">${icon('flame')}</span></div>`).join('')}</div>`
     : '<p class="panel-note">Marca tus hábitos hoy y aquí verás crecer tus rachas.</p>';

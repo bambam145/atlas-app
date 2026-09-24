@@ -1250,6 +1250,19 @@ button.wd:active { transform: scale(0.92); }
 .pause-emoji { font-size: 20px; line-height: 1; }
 @media (max-width: 480px) { .head-btns .lbl { display: none; } }
 
+.more-grid.quad { grid-template-columns: repeat(2, 1fr); }
+
+/* Deshacer */
+.toast.has-undo { display: flex; align-items: center; gap: 14px; pointer-events: auto; padding-right: 8px; }
+.toast-undo { flex: none; padding: 6px 12px; font: inherit; font-size: 13px; color: var(--on-text); background: color-mix(in srgb, var(--on-text) 16%, transparent); border: 0; border-radius: 99px; cursor: pointer; }
+
+/* Archivados */
+.archived { margin-top: 18px; }
+.archived-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.archived-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.archived-name { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 14px; font-weight: 600; }
+.archived-name small { font-size: 12px; font-weight: 500; color: var(--text-3); }
+
 /* Hoja: sueño */
 .time-now { display: flex; gap: 8px; align-items: center; }
 .time-now .input { flex: 1; min-width: 0; }

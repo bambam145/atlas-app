@@ -139,6 +139,23 @@ export async function signOut() {
   setStatus('signedout');
 }
 
+// Elimina la cuenta y todos sus datos en la nube; después deja este dispositivo limpio.
+export async function deleteAccount() {
+  if (!user) return;
+  const c = await client();
+  const { error } = await c.rpc('delete_my_account');
+  if (error) throw error;
+  try { await c.auth.signOut({ scope: 'local' }); } catch { /* la sesión ya no existe */ }
+  user = null;
+  license = undefined;
+  try { localStorage.removeItem(LICENSE_KEY); } catch { /* ignorar */ }
+  applyingRemote = true;
+  replaceState({ theme: state.theme });
+  applyingRemote = false;
+  writeMeta({ userId: null, remoteAt: 0, dirty: false });
+  setStatus('signedout');
+}
+
 /* ---------- Recordatorios (suscripciones push de este dispositivo) ---------- */
 
 export async function savePushSub(sub, tz) {

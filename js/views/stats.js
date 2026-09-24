@@ -94,7 +94,7 @@ export function renderStats() {
     <section class="panel">${label('Por hábito')}
       <div class="table-wrap"><table class="table">
         <thead><tr><th>Hábito</th><th>30 días</th><th>Racha</th><th>Récord</th></tr></thead>
-        <tbody>${[...state.habits].sort(byTime).map((h) => {
+        <tbody>${state.habits.filter((h) => !h.archivedAt).sort(byTime).map((h) => {
           const r = rateOf(h, 30);
           return `<tr><td>${h.emoji} ${esc(h.name)}</td><td><span class="mini-bar"><i style="width:${r ?? 0}%"></i></span>${r === null ? '—' : `${r}%`}</td><td>${streakOf(h)}</td><td>${bestOf(h)}</td></tr>`;
         }).join('')}</tbody>

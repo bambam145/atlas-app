@@ -160,7 +160,7 @@ export function insightsHtml() {
 
 export function renderSummary() {
   const p = period();
-  const habits = [...state.habits].filter((h) => keyOf(p.end) >= h.createdAt).sort(byTime);
+  const habits = state.habits.filter((h) => keyOf(p.end) >= h.createdAt && !(h.archivedAt && h.archivedAt <= keyOf(p.start))).sort(byTime);
   let done = 0;
   let total = 0;
   let perfect = 0;

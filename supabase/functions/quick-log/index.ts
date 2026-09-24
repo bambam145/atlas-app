@@ -1,4 +1,4 @@
-// Registra un hábito desde el botón de una notificación ("Sano", "+1 vaso"…) sin abrir atlas.
+// Registra un hábito ("Sano", "+1 vaso"…) o completa una tarea ("✓ Hecha") desde el botón de una notificación, sin abrir atlas.
 // El aviso trae un token firmado por send-reminders (usuario, hábito, día, zona horaria, vencimiento).
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
@@ -35,7 +35,9 @@ Deno.serve(async (req) => {
   try { t = JSON.parse(atob(body.replace(/-/g, '+').replace(/_/g, '/'))); } catch { return reply({ ok: false }, 400); }
   if (Date.now() > t.exp || !t.v.includes(String(input.value))) return reply({ ok: false }, 403);
 
-  const { data: ok, error } = await sb.rpc('push_quick_log', { p_user: t.u, p_day: t.d, p_habit: t.h, p_value: input.value, p_time: localTime(t.tz) });
+  const { data: ok, error } = input.value === 'task-done'
+    ? await sb.rpc('push_quick_task', { p_user: t.u, p_task: t.h, p_day: t.d })
+    : await sb.rpc('push_quick_log', { p_user: t.u, p_day: t.d, p_habit: t.h, p_value: input.value, p_time: localTime(t.tz) });
   if (error) return reply({ ok: false }, 500);
   return reply({ ok: !!ok });
 });

@@ -61,3 +61,46 @@ end;
 $$;
 revoke all on function public.push_quick_log(uuid, text, text, text, text) from public, anon, authenticated;
 grant execute on function public.push_quick_log(uuid, text, text, text, text) to service_role;
+
+-- El usuario elimina su propia cuenta y todos sus datos (Ajustes → Eliminar mi cuenta).
+create or replace function public.delete_my_account()
+returns void
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare uid uuid := auth.uid();
+begin
+  if uid is null then raise exception 'no_auth'; end if;
+  delete from private.push_sent where user_id = uid;
+  delete from private.email_log where user_id = uid;
+  delete from auth.users where id = uid; -- en cascada: datos, licencia, avisos, invitaciones
+end;
+$$;
+revoke all on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;
+
+-- Marcar una tarea como hecha desde el botón del aviso (lo llama quick-log con service_role).
+create or replace function public.push_quick_task(p_user uuid, p_task text, p_day text)
+returns boolean
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  d jsonb;
+  idx int;
+begin
+  if not private.license_ok(p_user) then return false; end if;
+  if p_day !~ '^\d{4}-\d{2}-\d{2}$' then return false; end if;
+  select data into d from atlas_data where user_id = p_user for update;
+  if d is null then return false; end if;
+  select i - 1 into idx from jsonb_array_elements(coalesce(d->'tasks', '[]')) with ordinality as x(t, i) where x.t->>'id' = p_task;
+  if idx is null then return false; end if;
+  d := jsonb_set(d, array['tasks', idx::text], (d->'tasks'->idx) || jsonb_build_object('status', 'done', 'doneAt', p_day));
+  update atlas_data set data = d, updated_at = now() where user_id = p_user;
+  return true;
+end;
+$$;
+revoke all on function public.push_quick_task(uuid, text, text) from public, anon, authenticated;
+grant execute on function public.push_quick_task(uuid, text, text) to service_role;

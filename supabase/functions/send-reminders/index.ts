@@ -1,5 +1,5 @@
 // Envía recordatorios push de atlas. La llama pg_cron cada 5 minutos con el header x-cron-secret.
-// - A la hora de cada hábito (si aún no está hecho hoy).
+// - A la hora de cada hábito (si aún no está hecho hoy) y de cada tarea con hora.
 // - Resumen de la noche con lo que falta.
 // - Domingo 7 pm: resumen de la semana.
 // Los avisos de hábitos traen botones ("Sano", "+1 vaso"…) que registran sin abrir la app (función quick-log).
@@ -25,8 +25,9 @@ function localNow(tz: string): { day: string; min: number; wd: number } {
 
 type Habit = {
   id: string; emoji?: string; name: string; days?: number[]; time?: string; createdAt?: string; target?: number; unit?: string;
-  freq?: string; remind?: boolean; kind?: string; labels?: string[]; sleepGoal?: number;
+  freq?: string; remind?: boolean; kind?: string; labels?: string[]; sleepGoal?: number; archivedAt?: string;
 };
+type Task = { id: string; title: string; date?: string | null; time?: string; status?: string; remind?: boolean };
 type Action = { action: string; title: string };
 
 const QUICK_URL = `${Deno.env.get('SUPABASE_URL')}/functions/v1/quick-log`;
@@ -94,7 +95,7 @@ const sleepMin = (r?: { bed?: string; wake?: string }) => {
 function weekSummary(data: any, today: string): { title: string; body: string } | null {
   const days = Array.from({ length: 7 }, (_, i) => addDay(today, i - 6)); // lunes..domingo
   // deno-lint-ignore no-explicit-any
-  const habits: Habit[] = (data.habits || []).filter((h: Habit) => h.freq !== 'weekly');
+  const habits: Habit[] = (data.habits || []).filter((h: Habit) => h.freq !== 'weekly' && !h.archivedAt);
   if (!habits.length) return null;
   const good = (h: Habit, v: unknown) => (kindOf(h) === 'quit' ? v !== 'none' : v === 'done' || (typeof v === 'number' && v >= target(h)));
   let done = 0, total = 0;
@@ -142,12 +143,12 @@ Deno.serve(async (req) => {
   let sent = 0, removed = 0;
   for (const t of targets || []) {
     const data = t.data || {};
-    const prefs = { habits: true, summary: true, summaryTime: '21:00', weekly: true, ...(data.reminders || {}) };
+    const prefs = { habits: true, tasks: true, summary: true, summaryTime: '21:00', weekly: true, ...(data.reminders || {}) };
     const subs = t.subs as { endpoint: string; p256dh: string; auth: string; tz: string }[];
     const tz = subs[0]?.tz || 'America/Lima';
     const now = localNow(tz);
     const log = (data.log || {})[now.day] || {};
-    const habits: Habit[] = paused(data, now.day) ? [] : (data.habits || []).filter((h: Habit) => scheduledToday(h, now.day, now.wd));
+    const habits: Habit[] = paused(data, now.day) ? [] : (data.habits || []).filter((h: Habit) => !h.archivedAt && scheduledToday(h, now.day, now.wd));
     const inWindow = (time?: string) => !!time && /^\d{2}:\d{2}$/.test(time) && now.min >= toMin(time) && now.min < toMin(time) + WINDOW_MIN;
 
     const msgs: { key: string; title: string; body: string; tag: string; url?: string; actions?: Action[]; act?: { url: string; token: string } }[] = [];
@@ -158,6 +159,18 @@ Deno.serve(async (req) => {
         const { actions, values } = actionsFor(h);
         const act = actions.length ? { url: QUICK_URL, token: await quickToken(t.user_id, h.id, now.day, tz, values, secrets.cron_secret) } : undefined;
         msgs.push({ key: `h:${h.id}`, title: `${h.emoji || '⏰'} ${h.name}`, body: progressText(h, log[h.id]), tag: `atlas-${h.id}`, actions, act });
+      }
+    }
+
+    // Tareas de hoy con hora (las vacaciones no pausan tus tareas).
+    if (prefs.tasks) {
+      for (const k of (data.tasks || []) as Task[]) {
+        if (k.date !== now.day || k.status === 'done' || k.remind === false || !inWindow(k.time)) continue;
+        const token = await quickToken(t.user_id, k.id, now.day, tz, ['task-done'], secrets.cron_secret);
+        msgs.push({
+          key: `t:${k.id}`, title: `📌 ${k.title}`, body: 'Es la hora de esta tarea.', tag: `atlas-t-${k.id}`,
+          actions: [{ action: 'task-done', title: '✓ Hecha' }], act: { url: QUICK_URL, token },
+        });
       }
     }
 

@@ -138,7 +138,14 @@ export const isWeekly = (h) => h.freq === 'weekly';
 export const perWeekOf = (h) => Math.min(7, Math.max(1, h.perWeek || 3));
 
 // ¿Se puede hacer este día? (semanales: cualquier día)
-export const isScheduled = (h, d) => (isWeekly(h) || h.days.includes(d.getDay())) && keyOf(d) >= h.createdAt && !isPaused(d);
+// Archivado: desde h.archivedAt ya no cuenta; si se reactivó, esos días quedan en h.gaps (no rompen la racha).
+const inGap = (h, k) => (h.archivedAt && k >= h.archivedAt) || (h.gaps || []).some((g) => k >= g.from && k <= g.to);
+export const isArchived = (h) => !!h.archivedAt;
+export const activeHabits = () => state.habits.filter((h) => !h.archivedAt);
+export const isScheduled = (h, d) => {
+  const k = keyOf(d);
+  return (isWeekly(h) || h.days.includes(d.getDay())) && k >= h.createdAt && !isPaused(d) && !inGap(h, k);
+};
 
 const rawOf = (h, d) => { const day = state.log[keyOf(d)]; return day ? day[h.id] : undefined; };
 

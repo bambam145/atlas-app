@@ -5,7 +5,7 @@ import { esc, keyOf, fromKey, today, addDays, fmtDay, fmtTime, pad, DAY_LETTER, 
 import { findHabit, daysLabel, HABIT_SUGGESTIONS, EMOJIS, MOMENTS, momentOfTime, kindOf, choiceLabels, CHOICE_DEFAULT, CHOICE_VALUES,
   statusOf, timeOf, sleepMinutes, sleepGoalOf, fmtDuration, litersText, isScheduled, isChoice, isCounter, isSleep, isQuit, countOf, targetOf,
   streakOf, bestOf, activePause, PAUSE_REASONS } from './habits.js';
-import { findTask, STATUS, CATEGORY_ICON } from './tasks.js';
+import { findTask, STATUS, CATEGORY_ICON, REPEATS } from './tasks.js';
 import { findGoal, GOAL_SUGGESTIONS, currentOf } from './goals.js';
 import { fmtAmount } from './views/metas.js';
 import { levelCard } from './views/hoy.js';
@@ -101,7 +101,7 @@ function habitSheet() {
       ${d.time && d.freq !== 'weekly' && pushStatus() !== 'nocloud' ? `<button class="toggle-row" data-action="habit-remind" aria-pressed="${d.remind}"><span>${icon('bell')} Avisarme a esta hora</span><span class="switch${d.remind ? ' is-on' : ''}"><i></i></span></button>` : ''}`)}
     <div class="sheet-actions">
       <button class="pill" data-action="save-habit">${sheet.mode === 'edit' ? 'Guardar cambios' : 'Crear hábito'}</button>
-      ${sheet.mode === 'edit' ? `<button class="link-danger" data-action="delete-habit">${icon('trash')} Eliminar hábito</button>` : ''}
+      ${sheet.mode === 'edit' ? `<button class="pill ghost" data-action="archive-habit">${icon('download')} Archivar</button><button class="link-danger" data-action="delete-habit">${icon('trash')} Eliminar hábito</button>` : ''}
     </div>`;
 }
 
@@ -284,6 +284,10 @@ function taskSheet() {
       ${field('Hora', `<input class="input" type="time" data-bind="time" value="${esc(d.time)}">`, 'opcional')}
       ${field('Duración', `<select class="input" data-bind="duration">${[15, 30, 45, 60, 90, 120, 180].map((m) => `<option value="${m}"${+d.duration === m ? ' selected' : ''}>${m < 60 ? `${m} min` : `${m / 60} h`}</option>`).join('')}</select>`)}
     </div>
+    ${d.time && d.date && pushStatus() !== 'nocloud' ? `<button class="toggle-row" data-action="task-remind" aria-pressed="${d.remind}"><span>${icon('bell')} Avisarme a esta hora</span><span class="switch${d.remind ? ' is-on' : ''}"><i></i></span></button>` : ''}
+    ${field('Repetir', `<div class="chips">${REPEATS.map(([id, t]) => `<button class="chip${(d.repeat || '') === id ? ' is-on' : ''}" data-action="task-repeat" data-v="${id}">${t}</button>`).join('')}</div>
+      ${d.repeat === 'week' ? `<div class="days" style="margin-top:10px">${WEEK_ORDER.map((i) => `<button class="day${d.repeatDays.includes(i) ? ' is-on' : ''}" data-action="task-repeat-day" data-d="${i}" aria-pressed="${d.repeatDays.includes(i)}" aria-label="${DAY_SHORT[i]}">${DAY_LETTER[i]}</button>`).join('')}</div>` : ''}
+      ${d.repeat ? '<p class="hint">Al completarla se crea la siguiente sola.</p>' : ''}`)}
     ${field('Prioridad', `<div class="chips">
       <button class="chip toggle${d.urgent ? ' is-on' : ''}" data-action="task-flag" data-v="urgent" aria-pressed="${d.urgent}">${icon('zap')} Urgente</button>
       <button class="chip toggle${d.important ? ' is-on' : ''}" data-action="task-flag" data-v="important" aria-pressed="${d.important}">${icon('star')} Importante</button>
@@ -313,8 +317,9 @@ export function openTask(id, preset = {}) {
     mode: t ? 'edit' : 'add',
     id: t?.id,
     draft: t
-      ? { title: t.title, date: t.date, time: t.time || '', duration: t.duration || 30, urgent: !!t.urgent, important: !!t.important, category: t.category || '', status: t.status, subtasks: t.subtasks.map((s) => ({ ...s })) }
-      : { title: '', date: keyOf(today()), time: '', duration: 30, urgent: false, important: false, category: '', status: 'todo', subtasks: [], ...preset },
+      ? { title: t.title, date: t.date, time: t.time || '', duration: t.duration || 30, urgent: !!t.urgent, important: !!t.important, category: t.category || '', status: t.status, subtasks: t.subtasks.map((s) => ({ ...s })),
+        repeat: t.repeat || '', repeatDays: [...(t.repeatDays || [])], remind: t.remind !== false }
+      : { title: '', date: keyOf(today()), time: '', duration: 30, urgent: false, important: false, category: '', status: 'todo', subtasks: [], repeat: '', repeatDays: [], remind: true, ...preset },
   });
 }
 
@@ -529,6 +534,7 @@ function remindersBlock() {
         ${tog(r.habits, 'rem-habits', 'A la hora de cada hábito')}
         ${tog(r.summary, 'rem-summary', 'Resumen de la noche')}
         ${r.summary ? `<label class="toggle-row"><span>Hora del resumen</span><input class="input time-mini" type="time" data-rem-time value="${esc(r.summaryTime)}"></label>` : ''}
+        ${tog(r.tasks, 'rem-tasks', 'A la hora de cada tarea')}
         ${tog(r.weekly, 'rem-weekly', 'Resumen de la semana (domingo 7 pm)')}
       </div>
       <p class="hint">En Android puedes responder desde el aviso: <b>Sano</b>, <b>+1 vaso</b>, <b>✓ Hecho</b>… sin abrir la app.</p>
@@ -577,7 +583,8 @@ function settingsSheet() {
       </div>
       <input type="file" id="f-import" accept="application/json,.json" data-import hidden>`)}
     ${field('Categorías de tareas', `<div class="chips">${state.categories.map((c) => `<span class="chip">${esc(c)}<button class="chip-x" data-action="del-cat" data-v="${esc(c)}" aria-label="Eliminar ${esc(c)}">${icon('x')}</button></span>`).join('')}</div>`)}
-    ${field('Zona de peligro', `<button class="link-danger left" data-action="wipe-data">${icon('trash')} Borrar todos mis datos</button>`)}
+    ${field('Zona de peligro', `<button class="link-danger left" data-action="wipe-data">${icon('trash')} Borrar todos mis datos</button>
+      ${cloud.user ? `<button class="link-danger left" data-action="delete-account">${icon('x')} Eliminar mi cuenta</button>` : ''}`)}
     <p class="hint legal-links"><a href="terminos.html" target="_blank" rel="noopener">Términos y Condiciones</a> · <a href="privacidad.html" target="_blank" rel="noopener">Política de Privacidad</a></p>`;
 }
 
@@ -586,7 +593,7 @@ function moreSheet() {
   return `
     <h2 id="sheet-title">Más</h2>
     ${levelCard()}
-    <div class="more-grid">
+    <div class="more-grid quad">
       ${item('planner', 'planner', 'Planner')}
       ${item('metas', 'target', 'Metas')}
       ${item('diario', 'book', 'Diario')}

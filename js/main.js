@@ -6,7 +6,7 @@ import { findHabit, isScheduled, statusOf, setStatus, streakOf, skipsThisWeek, S
   isCounter, isWeekly, targetOf, countOf, setCount, weekCount, perWeekOf, habitFromSuggestion,
   isChoice, isSleep, choiceLabels, CHOICE_VALUES, setSleep, sleepMinutes, sleepGoalOf, fmtDuration, isGlasses, litersText, migrateHabits,
   isQuit, challengeOf, CHALLENGES, activePause, PAUSE_REASONS } from './habits.js';
-import { findTask, newTask, setTaskStatus, parseTask, QUADRANTS } from './tasks.js';
+import { findTask, newTask, setTaskStatus, parseTask, QUADRANTS, ensureRecurrence, repeatLabel } from './tasks.js';
 import { findGoal, GOAL_SUGGESTIONS } from './goals.js';
 import { checkRewards } from './xp.js';
 import { toast, toastQueue } from './ui.js';
@@ -22,7 +22,7 @@ import { renderLogros } from './views/logros.js';
 import { renderMapa, mountMapa, toggleKind, zoomMapa } from './views/mapa.js';
 import { cloud, cloudEnabled, initCloud, onCloudChange, sendCode, verifyCode, signOut, pull, statusLabel,
   signInPassword, signUp, resetPassword, updatePassword, resendConfirmation, authError,
-  licenseInfo, redeemCode, fetchLicense, PLAN_LABEL, captureRef, myReferral } from './cloud.js';
+  licenseInfo, redeemCode, fetchLicense, PLAN_LABEL, captureRef, myReferral, deleteAccount } from './cloud.js';
 import { auth, resetAuth, renderAuth, renderSplash, mountAuthFx, passStrength, STRENGTH_LABEL } from './views/auth.js';
 import { ob, obSteps, obMoment, renderOnboarding } from './views/onboarding.js';
 import { pw, renderPaywall } from './views/paywall.js';
@@ -107,6 +107,7 @@ function render() {
     return;
   }
   migrateHabits();
+  ensureRecurrence();
   app.dataset.view = view;
   app.innerHTML = VIEWS[view]({ pop });
   pop = null;
@@ -174,6 +175,13 @@ function go(v) {
 
 /* ---------- Acciones ---------- */
 
+// Deshacer: guarda una foto de tus datos y la restaura si tocas "Deshacer".
+const DATA_KEYS = ['habits', 'log', 'tasks', 'goals', 'journal', 'times', 'sleep', 'pauses'];
+function snapshot() {
+  const snap = JSON.stringify(Object.fromEntries(DATA_KEYS.map((k) => [k, state[k]])));
+  return () => { Object.assign(state, JSON.parse(snap)); save(); render(); toast('Listo, se deshizo'); };
+}
+
 function toggleHabit(id) {
   const h = findHabit(id);
   const t = today();
@@ -196,7 +204,9 @@ function toggleHabit(id) {
       render(); return;
     }
   } else {
+    const undo = snapshot();
     setStatus(h, t, wasDone ? null : 'done');
+    if (wasDone) { toast(`${h.emoji} Desmarcado`, undo); render(); return; }
   }
   if (!wasDone) {
     pop = id;
@@ -259,9 +269,13 @@ function decHabit(id) {
 function toggleTask(id) {
   const t = findTask(id);
   if (!t) return;
+  const undo = snapshot();
   const done = t.status === 'done';
   setTaskStatus(t, done ? 'todo' : 'done');
-  if (!done) { pop = id; if (navigator.vibrate) navigator.vibrate(12); toast('✓ Tarea completada · +5 XP'); }
+  if (!done) {
+    pop = id; if (navigator.vibrate) navigator.vibrate(12);
+    toast(t.repeat ? `✓ Hecha · la próxima ya está en tu lista` : '✓ Tarea completada · +5 XP', undo);
+  }
   render();
 }
 
@@ -299,14 +313,15 @@ function saveHabit() {
 
 function deleteHabit() {
   const h = findHabit(sheet.id);
-  if (!h || !confirm(`¿Eliminar "${h.name}"? También se borrará su historial.`)) return;
+  if (!h || !confirm(`¿Eliminar "${h.name}"? También se borrará su historial.\n\nSi solo quieres dejarlo por un tiempo, usa "Archivar": se guarda todo.`)) return;
+  const undo = snapshot();
   state.habits = state.habits.filter((x) => x.id !== h.id);
   for (const k of Object.keys(state.log)) {
     delete state.log[k][h.id];
     if (!Object.keys(state.log[k]).length) delete state.log[k];
   }
   for (const g of state.goals) if (g.habitId === h.id) g.habitId = '';
-  save(); closeSheet(); toast('Hábito eliminado'); render();
+  save(); closeSheet(); toast('Hábito eliminado', undo); render();
 }
 
 function saveTask() {
@@ -315,7 +330,11 @@ function saveTask() {
   if (!title) { toast('Escribe la tarea'); document.getElementById('f-title')?.focus(); return; }
   const pendingSub = document.getElementById('f-sub')?.value.trim();
   if (pendingSub) d.subtasks.push({ id: uid(), title: pendingSub, done: false });
-  const fields = { title, date: d.date || null, time: d.time, duration: +d.duration || 30, urgent: d.urgent, important: d.important, category: d.category, subtasks: d.subtasks };
+  if (d.repeat && !d.date) d.date = keyOf(today()); // una tarea que se repite necesita fecha de inicio
+  const fields = {
+    title, date: d.date || null, time: d.time, duration: +d.duration || 30, urgent: d.urgent, important: d.important, category: d.category, subtasks: d.subtasks,
+    repeat: d.repeat || '', repeatDays: d.repeat === 'week' ? [...d.repeatDays].sort() : [], remind: d.remind !== false,
+  };
   if (sheet.mode === 'add') {
     state.tasks.push(newTask(fields));
     toast('✓ Tarea creada');
@@ -330,9 +349,10 @@ function saveTask() {
 
 function deleteTask() {
   const t = findTask(sheet.id);
-  if (!t || !confirm(`¿Eliminar "${t.title}"?`)) return;
+  if (!t) return;
+  const undo = snapshot();
   state.tasks = state.tasks.filter((x) => x.id !== t.id);
-  save(); closeSheet(); toast('Tarea eliminada'); render();
+  save(); closeSheet(); toast('Tarea eliminada', undo); render();
 }
 
 function saveGoal() {
@@ -355,9 +375,10 @@ function saveGoal() {
 
 function deleteGoal() {
   const g = findGoal(sheet.id);
-  if (!g || !confirm(`¿Eliminar la meta "${g.title}"?`)) return;
+  if (!g) return;
+  const undo = snapshot();
   state.goals = state.goals.filter((x) => x.id !== g.id);
-  save(); closeSheet(); toast('Meta eliminada'); render();
+  save(); closeSheet(); toast('Meta eliminada', undo); render();
 }
 
 function saveGoalAdd() {
@@ -498,6 +519,7 @@ const actions = {
   },
   'rem-habits': () => { state.reminders = { ...reminders(), habits: !reminders().habits }; save(); renderSheet(); },
   'rem-summary': () => { state.reminders = { ...reminders(), summary: !reminders().summary }; save(); renderSheet(); },
+  'rem-tasks': () => { state.reminders = { ...reminders(), tasks: !reminders().tasks }; save(); renderSheet(); },
   'rem-weekly': () => { state.reminders = { ...reminders(), weekly: !reminders().weekly }; save(); renderSheet(); },
   'install-app': async () => {
     if (!canPromptInstall()) { openSheet('settings'); return; }
@@ -524,6 +546,17 @@ const actions = {
     state.categories = state.categories.filter((x) => x !== c);
     for (const t of state.tasks) if (t.category === c) t.category = '';
     save(); render();
+  },
+  'delete-account': async () => {
+    if (!confirm('¿Eliminar tu cuenta de atlas?\n\nSe borran para siempre tus hábitos, tareas, metas, diario y tu plan (también si pagaste). Esto no se puede deshacer.')) return;
+    const typed = prompt('Para confirmar, escribe ELIMINAR');
+    if ((typed || '').trim().toUpperCase() !== 'ELIMINAR') { toast('No se eliminó nada'); return; }
+    try {
+      await forgetPush();
+      await deleteAccount();
+      closeSheet(); resetAuth('login'); authShownAt = 0; view = 'hoy'; render();
+      toast('Tu cuenta y tus datos fueron eliminados');
+    } catch (e) { toast(authError(e)); }
   },
   'wipe-data': () => {
     if (!confirm(`¿Borrar TODOS tus hábitos, tareas, metas y notas${cloud.user ? ' (también de la nube)' : ''}? Esto no se puede deshacer.`)) return;
@@ -641,6 +674,23 @@ const actions = {
   'emoji-toggle': () => { sheet.emojiOpen = !sheet.emojiOpen; renderSheet(); },
   'emoji-pick': (el) => { sheet.draft.emoji = el.dataset.e; sheet.emojiOpen = false; renderSheet(); },
   'save-habit': saveHabit,
+  'archive-habit': () => {
+    const h = findHabit(sheet.id);
+    if (!h) return;
+    const undo = snapshot();
+    h.archivedAt = keyOf(today());
+    save(); closeSheet(); toast(`${h.emoji} Archivado · lo encuentras al final de Hábitos`, undo); render();
+  },
+  'unarchive-habit': (el) => {
+    const h = findHabit(el.dataset.id);
+    if (!h) return;
+    const tk = keyOf(today());
+    // Los días que estuvo archivado no cuentan como fallados.
+    if (h.archivedAt < tk) h.gaps = [...(h.gaps || []), { from: h.archivedAt, to: keyOf(addDays(today(), -1)) }];
+    delete h.archivedAt;
+    save(); toast(`${h.emoji} ${h.name} está de vuelta`); render();
+  },
+  'toggle-archived': () => { state.ui.showArchived = !state.ui.showArchived; render(); },
   'delete-habit': deleteHabit,
 
   // Tareas
@@ -664,6 +714,20 @@ const actions = {
     if (!state.categories.includes(c)) { state.categories.push(c); save(); }
     sheet.draft.category = c; renderSheet();
   },
+  'task-repeat': (el) => {
+    const d = sheet.draft;
+    d.repeat = el.dataset.v;
+    if (d.repeat === 'week' && !d.repeatDays.length) d.repeatDays = [fromKey(d.date || keyOf(today())).getDay()];
+    renderSheet();
+  },
+  'task-repeat-day': (el) => {
+    const d = sheet.draft;
+    const n = +el.dataset.d;
+    d.repeatDays = d.repeatDays.includes(n) ? d.repeatDays.filter((x) => x !== n) : [...d.repeatDays, n];
+    if (!d.repeatDays.length) d.repeatDays = [n];
+    renderSheet();
+  },
+  'task-remind': () => { sheet.draft.remind = !sheet.draft.remind; renderSheet(); },
   'task-status': (el) => { sheet.draft.status = el.dataset.v; renderSheet(); },
   'sub-toggle': (el) => { const s = sheet.draft.subtasks[+el.dataset.i]; s.done = !s.done; renderSheet(); },
   'sub-del': (el) => { sheet.draft.subtasks.splice(+el.dataset.i, 1); renderSheet(); },

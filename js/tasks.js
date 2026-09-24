@@ -1,6 +1,6 @@
 // Tareas: modelo, agrupación y lectura de lenguaje natural ("llamar a mamá mañana 3pm #trabajo !").
 import { state, save } from './store.js';
-import { keyOf, fromKey, today, addDays, daysBetween, pad, uid, cap } from './util.js';
+import { keyOf, fromKey, today, addDays, daysBetween, pad, uid, cap, DAY_SHORT, WEEK_ORDER } from './util.js';
 
 export const STATUS = {
   todo: { label: 'Por hacer', tone: 'muted' },
@@ -18,6 +18,53 @@ export const QUADRANTS = [
 export const CATEGORY_ICON = { Personal: 'user', Trabajo: 'briefcase', Estudio: 'graduation', Salud: 'heart', Casa: 'home2' };
 
 export const findTask = (id) => state.tasks.find((t) => t.id === id);
+
+/* ---------- Tareas que se repiten ---------- */
+// t.repeat: '' | 'day' | 'weekdays' | 'week' (t.repeatDays: [0..6]) | 'month'
+export const REPEATS = [['', 'No se repite'], ['day', 'Cada día'], ['weekdays', 'Lunes a viernes'], ['week', 'Cada semana'], ['month', 'Cada mes']];
+
+export function repeatLabel(t) {
+  if (!t.repeat) return '';
+  if (t.repeat === 'week') {
+    const days = (t.repeatDays || []).length ? t.repeatDays : [fromKey(t.date || keyOf(today())).getDay()];
+    return `Cada ${WEEK_ORDER.filter((d) => days.includes(d)).map((d) => DAY_SHORT[d].toLowerCase()).join(', ')}`;
+  }
+  return (REPEATS.find((r) => r[0] === t.repeat) || [])[1] || '';
+}
+
+// Siguiente fecha después de `k`.
+function stepDate(t, k) {
+  const d = fromKey(k);
+  if (t.repeat === 'month') {
+    const day = fromKey(t.date || k).getDate();
+    const last = new Date(d.getFullYear(), d.getMonth() + 2, 0).getDate();
+    return keyOf(new Date(d.getFullYear(), d.getMonth() + 1, Math.min(day, last)));
+  }
+  const days = t.repeat === 'weekdays' ? [1, 2, 3, 4, 5]
+    : t.repeat === 'week' ? ((t.repeatDays || []).length ? t.repeatDays : [fromKey(t.date || k).getDay()])
+      : [0, 1, 2, 3, 4, 5, 6];
+  for (let i = 1; i <= 7; i++) { const n = addDays(d, i); if (days.includes(n.getDay())) return keyOf(n); }
+  return keyOf(addDays(d, 1));
+}
+
+// Al completar una tarea que se repite, se crea la siguiente (una sola vez).
+export function ensureRecurrence() {
+  let changed = false;
+  const tk = keyOf(today());
+  for (const t of [...state.tasks]) {
+    if (!t.repeat || t.status !== 'done' || t.nextMade) continue;
+    let next = stepDate(t, t.date || tk);
+    while (next <= (t.doneAt || tk)) next = stepDate(t, next); // si la hiciste tarde, la próxima no nace atrasada
+    if (next <= t.date) next = stepDate(t, next);
+    state.tasks.push(newTask({
+      title: t.title, date: next, time: t.time, duration: t.duration, urgent: t.urgent, important: t.important, category: t.category,
+      repeat: t.repeat, repeatDays: t.repeatDays, remind: t.remind, subtasks: (t.subtasks || []).map((s) => ({ ...s, id: uid(), done: false })),
+    }));
+    t.nextMade = true;
+    changed = true;
+  }
+  if (changed) save();
+}
 
 export function newTask(fields = {}) {
   return {

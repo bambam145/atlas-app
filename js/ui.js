@@ -3,7 +3,7 @@ import { icon } from './icons.js';
 import { esc, fmtTime, fmtDay, today, addDays } from './util.js';
 import { statusOf, streakOf, streakText, isCounter, isWeekly, countOf, targetOf, weekCount, perWeekOf,
   isChoice, isSleep, isQuit, choiceLabelOf, timeOf, isGlasses, litersText, sleepOf, sleepMinutes, fmtDuration, sleepGoalOf, challengeOf, bestOf } from './habits.js';
-import { taskMeta, CATEGORY_ICON, isOverdue } from './tasks.js';
+import { taskMeta, CATEGORY_ICON, isOverdue, repeatLabel } from './tasks.js';
 
 export function pageHead({ eyebrow, title, sub = '', right = '' }) {
   return `
@@ -92,6 +92,7 @@ export function taskRow(t, { showDate = false, pop = false } = {}) {
   for (const m of taskMeta(t)) meta.push(`<span>${icon('star')} ${m}</span>`);
   if (showDate && t.date) meta.push(`<span class="${isOverdue(t) ? 'bad' : ''}">${icon('calendar')} ${fmtDay(t.date)}</span>`);
   if (t.status === 'doing') meta.push(`<span class="warn">${icon('zap')} Haciendo</span>`);
+  if (t.repeat) meta.push(`<span>${icon('repeat')} ${repeatLabel(t)}</span>`);
   if (t.subtasks?.length) meta.push(`<span>${icon('subtask')} ${t.subtasks.filter((s) => s.done).length}/${t.subtasks.length}</span>`);
   return `
     <div class="item${done ? ' is-done' : ''}${pop ? ' pop' : ''}">
@@ -131,12 +132,21 @@ export function emptyState(title, text, actions = '') {
 }
 
 let toastTimer;
-export function toast(msg) {
+// undo: función que revierte lo que se acaba de hacer (muestra el botón "Deshacer").
+export function toast(msg, undo) {
   const el = document.getElementById('toast');
   el.textContent = msg;
+  el.classList.toggle('has-undo', !!undo);
+  if (undo) {
+    const b = document.createElement('button');
+    b.className = 'toast-undo';
+    b.textContent = 'Deshacer';
+    b.onclick = () => { el.classList.remove('is-on'); undo(); };
+    el.append(b);
+  }
   el.classList.add('is-on');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('is-on'), 2600);
+  toastTimer = setTimeout(() => el.classList.remove('is-on'), undo ? 5000 : 2600);
 }
 
 // Cola de avisos (logros + nivel) para que no se pisen.
