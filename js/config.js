@@ -14,7 +14,9 @@ export const EMAIL_CODES = true;
 // Pixel de Meta para medir tus anuncios (vacío = desactivado) y precios para el evento de compra.
 export const PIXEL_ID = '';
 export const CURRENCY = 'USD';
-export const PRICES = { lifetime: 0, monthly: 0, yearly: 0 };
+export const PRICES = { monthly: 3.99, yearly: 24.99, lifetime: 29.99 };
+// Precio tachado (oferta de lanzamiento: de por vida a 29.99 para los primeros 100). Borra la línea de adentro para quitar la oferta.
+export const PRICE_BEFORE = { lifetime: 39.99 };
 
 // Recordatorios push: llave pública VAPID (la privada vive solo en el servidor).
 export const VAPID_PUBLIC_KEY = 'BEO5_2-55h_giDsyTA_cLZzIPHo3Tk-vNK7osPXaJJldRn6kVmdTxgCZFn9Js4apv8Z96s_BYU14CP9hpcx9jOY';

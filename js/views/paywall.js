@@ -2,7 +2,7 @@
 import { icon, logo } from '../icons.js';
 import { esc } from '../util.js';
 import { cloud, licenseInfo } from '../cloud.js';
-import { BUY_URL, SUPPORT_EMAIL } from '../config.js';
+import { BUY_URL, SUPPORT_EMAIL, PRICES, PRICE_BEFORE } from '../config.js';
 
 export const pw = { code: '', busy: false, error: '' };
 
@@ -12,6 +12,30 @@ const COPY = {
   suspended: ['Tu cuenta está suspendida.', 'Escríbenos para resolverlo.', 'Si crees que es un error, contáctanos y lo revisamos.'],
   none: ['Activa tu cuenta.', 'Solo falta un paso.', 'Canjea tu código de activación para empezar a usar atlas.'],
 };
+
+const money = (n) => `$${Number(n).toFixed(2)}`;
+
+// Tarjetas de planes (el anual destacado)
+export function planCards() {
+  if (!PRICES?.yearly) return '';
+  const card = (id, name, per, note, best) => {
+    const before = PRICE_BEFORE?.[id];
+    return `<div class="plan-card${best ? ' is-best' : ''}">
+      ${best ? '<span class="plan-tag">Más elegido</span>' : ''}
+      ${before ? '<span class="plan-tag soft">Lanzamiento</span>' : ''}
+      <span class="plan-name">${name}</span>
+      <span class="plan-price">${before ? `<s>${money(before)}</s>` : ''}${money(PRICES[id])}<small>${per}</small></span>
+      <span class="plan-note">${note}</span>
+    </div>`;
+  };
+  const monthsFree = Math.round(12 - PRICES.yearly / PRICES.monthly);
+  return `<div class="plans">
+    ${card('yearly', 'Anual', '/año', `≈ ${money(PRICES.yearly / 12)} al mes · ahorras ${monthsFree} meses`, true)}
+    ${card('lifetime', 'De por vida', 'una vez', PRICE_BEFORE?.lifetime ? 'Pago único · solo primeros 100' : 'Pago único, para siempre')}
+    ${card('monthly', 'Mensual', '/mes', 'Cancela cuando quieras')}
+  </div>
+  <p class="hint plans-hint">Precios en dólares (USD).</p>`;
+}
 
 export function renderPaywall() {
   const info = licenseInfo();
@@ -23,6 +47,7 @@ export function renderPaywall() {
         <div class="ob-head">${logo(34)}<span class="pw-mail">${esc(cloud.user?.email || '')}</span></div>
         <h1 class="ob-title">${t1} <span>${t2}</span></h1>
         <p class="auth-p">${p}</p>
+        ${info.state !== 'suspended' ? planCards() : ''}
 
         ${info.state !== 'suspended' ? `
         <form class="auth-form" data-form="redeem" novalidate>

@@ -1143,3 +1143,16 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .auth-splash .auth-spin { margin-top: 18px; }
 .auth-tagline { font-size: 14px; color: var(--text-3); letter-spacing: 0.06em; }
 .auth-foot b { color: var(--text-2); font-weight: 500; margin-right: 6px; }
+
+/* ---------- Planes y precios ---------- */
+.plans { display: grid; gap: 14px; margin: 22px 0 6px; }
+.plan-card { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 12px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; }
+.plan-card.is-best { border-color: var(--border-2); background: var(--surface-2); }
+.plan-name { font-weight: 600; font-size: 15px; }
+.plan-price { grid-row: span 2; font-size: 22px; font-weight: 500; letter-spacing: -0.02em; text-align: right; }
+.plan-price s { display: block; font-size: 12px; color: var(--text-3); font-weight: 400; }
+.plan-price small { font-size: 12px; color: var(--text-3); font-weight: 400; margin-left: 3px; }
+.plan-note { font-size: 12.5px; color: var(--text-3); }
+.plan-tag { position: absolute; top: -9px; left: 14px; padding: 2px 8px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; color: var(--on-text); background: var(--text); border-radius: 99px; }
+.plan-tag.soft { color: var(--text); background: var(--surface-3); border: 1px solid var(--border-2); }
+.plans-hint { margin: 2px 0 14px; }
