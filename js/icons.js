@@ -73,12 +73,21 @@ export function icon(name, cls = '') {
   return `<svg class="i ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || ''}</svg>`;
 }
 
-// Logo de atlas: esfera con órbita.
+// Logo de atlas: una "A" sin travesaño, pierna izquierda blanca y derecha en degradado gris.
+export const LOGO_WHITE = 'M20.3 80 H34.2 Q36.4 80 37.7 77.3 L57.7 35.1 A8.5 8.5 0 0 0 42.3 27.9 L18.9 77.3 Q17.6 80 20.3 80 Z';
+export const LOGO_GRAY = 'M63.7 80 L46.4 45.8 A8.5 8.5 0 0 1 61.6 38.2 L82.7 80 Z';
+let logoN = 0;
 export function logo(size = 28) {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" aria-hidden="true">
-    <rect width="32" height="32" rx="9" fill="var(--text)"/>
-    <circle cx="16" cy="16" r="7" fill="none" stroke="var(--on-text)" stroke-width="2"/>
-    <ellipse cx="16" cy="16" rx="12" ry="4.2" fill="none" stroke="var(--on-text)" stroke-width="1.6" transform="rotate(-24 16 16)"/>
-    <circle cx="26.2" cy="11.4" r="1.8" fill="var(--on-text)"/>
+  const id = `atlas-g${++logoN}`;
+  return `<svg class="logo" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true">
+    <defs><linearGradient id="${id}" x1="55" y1="42" x2="78" y2="82" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#141414"/><stop offset=".5" stop-color="#6c6c6c"/><stop offset="1" stop-color="#b2b2b2"/>
+    </linearGradient></defs>
+    <rect x=".75" y=".75" width="98.5" height="98.5" rx="22" fill="#000" stroke="rgba(255,255,255,.16)" stroke-width="1.5"/>
+    <path d="${LOGO_GRAY}" fill="url(#${id})"/>
+    <path d="${LOGO_WHITE}" fill="#F2F2F2"/>
   </svg>`;
 }
+
+// Nombre de la marca: ATLAS con las "A" sin travesaño (Λ).
+export const wordmark = (cls = '') => `<span class="wordmark ${cls}" aria-label="atlas">ΛTLΛS</span>`;

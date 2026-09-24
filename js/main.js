@@ -1,6 +1,6 @@
 // atlas — punto de entrada: navegación, render y acciones.
 import { state, save, setRenderer, replaceState, isValidBackup } from './store.js';
-import { icon, logo } from './icons.js';
+import { icon, logo, wordmark } from './icons.js';
 import { today, keyOf, fromKey, addDays, fromMinutes, uid, fmtDay, fmtTime, ALL_DAYS } from './util.js';
 import { findHabit, isScheduled, statusOf, setStatus, streakOf, skipsThisWeek, SKIPS_PER_WEEK, HABIT_SUGGESTIONS, momentTime,
   isCounter, isWeekly, targetOf, countOf, setCount, weekCount, perWeekOf, habitFromSuggestion } from './habits.js';
@@ -859,7 +859,7 @@ document.addEventListener('scroll', () => tip.classList.remove('is-on'), { passi
 // Si cambia el día con la app abierta, refrescar al volver.
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !gate()) render(); });
 
-document.getElementById('side-brand').innerHTML = `${logo(30)}<span>atlas</span>`;
+document.getElementById('side-brand').innerHTML = `${logo(30)}${wordmark()}`;
 captureRef();
 initPixel();
 render();

@@ -1,6 +1,7 @@
 // Compartir la racha: genera una imagen para historias de Instagram/WhatsApp (1080×1920).
 import { state } from './store.js';
 import { today, keyOf, addDays, mondayOf } from './util.js';
+import { LOGO_WHITE, LOGO_GRAY } from './icons.js';
 import {
   isScheduled, statusOf, streakOf, bestOf, rateOf, isWeekly, isCounter, countOf, targetOf, freqLabel,
 } from './habits.js';
@@ -15,14 +16,13 @@ async function fontsReady() {
 
 function logo(ctx, x, y, s) {
   ctx.save();
-  ctx.fillStyle = '#EFEFEF';
-  ctx.beginPath(); ctx.roundRect(x, y, s, s, s * 0.28); ctx.fill();
-  const c = s / 2;
-  ctx.strokeStyle = '#000'; ctx.lineWidth = s * 0.065;
-  ctx.beginPath(); ctx.arc(x + c, y + c, s * 0.22, 0, Math.PI * 2); ctx.stroke();
-  ctx.translate(x + c, y + c); ctx.rotate(-0.42);
-  ctx.lineWidth = s * 0.05;
-  ctx.beginPath(); ctx.ellipse(0, 0, s * 0.375, s * 0.13, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.translate(x, y); ctx.scale(s / 100, s / 100);
+  ctx.fillStyle = '#000'; ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(0.75, 0.75, 98.5, 98.5, 22); ctx.fill(); ctx.stroke();
+  const g = ctx.createLinearGradient(55, 42, 78, 82);
+  g.addColorStop(0, '#141414'); g.addColorStop(0.5, '#6c6c6c'); g.addColorStop(1, '#b2b2b2');
+  ctx.fillStyle = g; ctx.fill(new Path2D(LOGO_GRAY));
+  ctx.fillStyle = '#F2F2F2'; ctx.fill(new Path2D(LOGO_WHITE));
   ctx.restore();
 }
 
@@ -44,8 +44,10 @@ export async function renderStreakImage(h) {
 
   // Marca
   logo(ctx, 90, 110, 72);
-  ctx.fillStyle = '#EFEFEF'; ctx.font = F(600, 46); ctx.textBaseline = 'middle';
-  ctx.fillText('atlas', 184, 148);
+  ctx.fillStyle = '#EFEFEF'; ctx.font = F(400, 40); ctx.textBaseline = 'middle';
+  ctx.letterSpacing = '13px';
+  ctx.fillText('ΛTLΛS', 190, 148);
+  ctx.letterSpacing = '0px';
   if (state.profile?.name) {
     ctx.fillStyle = '#7A7A7A'; ctx.font = F(400, 34); ctx.textAlign = 'right';
     ctx.fillText(state.profile.name, W - 90, 148);

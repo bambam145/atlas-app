@@ -1,5 +1,5 @@
 // Pantalla de entrada (cuenta obligatoria): entrar, crear cuenta, enlace por correo y recuperar contraseña.
-import { icon, logo } from '../icons.js';
+import { icon, logo, wordmark } from '../icons.js';
 import { esc } from '../util.js';
 import { EMAIL_CODES } from '../config.js';
 import { pendingRef } from '../cloud.js';
@@ -96,14 +96,14 @@ function preview() {
 }
 
 export function renderSplash() {
-  return `<div class="auth-splash">${logo(52)}<span class="auth-spin"></span></div>`;
+  return `<div class="auth-splash">${logo(64)}${wordmark('big')}<span class="auth-tagline">Tu vida. En orden.</span><span class="auth-spin"></span></div>`;
 }
 
 export function renderAuth() {
   return `
     <div class="auth">
       <section class="auth-brand">
-        <div class="auth-logo">${logo(34)}<span>atlas</span></div>
+        <div class="auth-logo">${logo(36)}${wordmark()}</div>
         <div class="auth-hero">
           <div class="auth-copy">
             <h1 class="auth-title">Solo necesitas <b>un sistema</b> <span>para ser <em class="rot-word">${WORDS[0]}</em>.</span></h1>
@@ -111,7 +111,7 @@ export function renderAuth() {
           </div>
           ${preview()}
         </div>
-        <p class="auth-foot">Hábitos · Tareas · Metas · Diario — todo en un solo lugar.</p>
+        <p class="auth-foot"><b>Tu vida. En orden.</b> Hábitos · Tareas · Metas · Diario — todo en un solo lugar.</p>
       </section>
       <section class="auth-panel">
         <div class="auth-top">${auth.mode === 'signup'

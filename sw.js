@@ -1,5 +1,5 @@
 // Service worker: la app abre sin internet. Red primero, caché como respaldo.
-const CACHE = 'atlas-v19';
+const CACHE = 'atlas-v20';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './css/styles.css',
   './js/main.js', './js/store.js', './js/config.js', './js/cloud.js', './js/util.js', './js/icons.js', './js/ui.js', './js/sheets.js',
